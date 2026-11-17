@@ -151,6 +151,7 @@ What is recalled goes to the model as data, bounded by `context.max_chars` and `
 Answer any notice with what you want changed and Radar stores it as a scoped preference: "don't notify me about this sender any more" (silence for that address), "send me the CI ones in the digest" (digest), "always notify me about this" (interrupt), "silence this whole account". The model interprets the sentence with the notice's context; without a model it is stored as is with the scope of the sender or the task kind. Security alerts, service outages, deadlines and financial losses keep getting through unless you say otherwise.
 
 - `/radar prefs` lists the active ones; `/radar forget <id>` disables one (they stay versioned, never deleted).
+- A scope spends `sender` on the address and `sender_name` on the display name: GitHub relays every App from `notifications@github.com`, so silencing CodeRabbit alone is `sender: notifications@github.com` **and** `sender_name: coderabbitai[bot]`, and another address cannot borrow the name. A display name is chosen by whoever writes the mail, so a rule scoped by name alone is only accepted for `silent` and `digest`.
 - In the chat, the agent can store them with `radar_preference` (explicit effect and scope).
 - They apply from the next signal on: triage drops what is silenced before calling the model and attention decides immediate notice or summary.
 
