@@ -122,6 +122,7 @@ PLAN_SCHEMA = _obj(
             "options": _arr(_obj({"id": _STR, "label": _STR, "ack": _STR})),  # ack: for "ask", the word said back when that answer is tapped
             "fact": _obj({"key": _STR, "yes": _STR, "no": _STR}),  # only for "ask": what each answer records
             "then": {"type": "string", "enum": ["step", "nothing"]},  # for "ask": does an answer lead anywhere?
+            "attachments": _arr(_STR),  # only for a mail step: absolute paths of the files that travel with the reply
             "basis": {"type": "string", "enum": DRAFT_BASES + [""]},  # for a mail step: why the draft is worth sending
         })),
         "notify": _obj({

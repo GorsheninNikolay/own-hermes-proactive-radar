@@ -51,7 +51,8 @@ class MailProvider:
               in_reply_to: str | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
-    def reply(self, message_id: str, body: str, *, reply_all: bool = False) -> dict[str, Any]:
+    def reply(self, message_id: str, body: str, *, reply_all: bool = False, attachments: list[str] | None = None) -> dict[str, Any]:
+        """``attachments``: paths of files to send with the reply; only a provider whose capabilities say ``attach``."""
         raise NotImplementedError
 
     def send(self, *, to: list[str], subject: str, body: str) -> dict[str, Any]:

@@ -366,7 +366,9 @@ async def process_bundle(rt: Any, bundle: dict[str, Any], now_dt: datetime) -> d
                 _apply_retention(store, kept, keep=False, config=config, now_dt=now_dt)
                 summary["result"] = "noise"
                 return summary
-            candidates = correlate.candidate_tasks(store, extracted, session_id=session_id, session_ids=thread_sessions, group_key=str(kept[0].get("group_key") or ""))
+            related = correlate.related_tasks(store, config, kept, thread_sessions, now_dt) if session_id else []
+            candidates = correlate.candidate_tasks(store, extracted, session_id=session_id, session_ids=thread_sessions, group_key=str(kept[0].get("group_key") or ""),
+                                                   related=related)
         if existing_task is not None:
             existing_task = task_context(store, existing_task)
         # What the planner must see besides the bundle: what its task received after the bundle's last item, and what

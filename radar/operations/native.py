@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from ..consent import ConsentSigner
+from ..mailtext import unsendable, verify_attachments
 from ..models import canonical_hash
 from ..reversibility import classify, ensure_origin_mark, validate_no_automerge
 
@@ -77,6 +78,12 @@ def _draft_id(ref: Any) -> str:
     return match.group(1) if match else ""
 
 
+def mail_text(proposal: dict[str, Any], task: dict[str, Any] | None) -> str:
+    """The text a mail step sends: the one place that says so, read by the send and by every notice that asks for it,
+    so what the owner is shown is what goes out."""
+    return str((proposal.get("params") or {}).get("draft") or (((task or {}).get("entities") or {}).get("draft") or {}).get("text") or "")
+
+
 def plan(store: Any, proposal: dict[str, Any], task: dict[str, Any], option: str) -> dict[str, Any] | None:
     """``{"operation", "params"}`` when the proposal can run natively; None when it should be a delegated job."""
     operation = resolve(proposal.get("operation_id"))
@@ -87,7 +94,7 @@ def plan(store: Any, proposal: dict[str, Any], task: dict[str, Any], option: str
         signals = sorted(store.signals_for_task(task["id"], limit=30), key=lambda s: str(s.get("occurred_at") or ""), reverse=True)
     except Exception:
         signals = []
-    draft = (proposal.get("params") or {}).get("draft") or ((task.get("entities") or {}).get("draft") or {}).get("text") or ""
+    draft = mail_text(proposal, task)
     if operation == "gmail.reply":
         latest = next((s for s in signals if s.get("kind") == "email" and _address((s.get("meta") or {}).get("sender")) != str((s.get("meta") or {}).get("account") or "").lower()), None)
         if latest is None:
@@ -99,6 +106,11 @@ def plan(store: Any, proposal: dict[str, Any], task: dict[str, Any], option: str
         params.setdefault("to", _address(meta.get("sender")))
         params.setdefault("subject", str(latest.get("title") or ""))
         params.setdefault("body", str(draft or ""))
+        if unsendable(params["body"], subject=params["subject"]):
+            return None  # an unfilled field or a subject line in the body never goes out: no safe way to run this step
+        files = [f for f in ((proposal.get("params") or {}).get("attachments") or []) if isinstance(f, dict)]
+        if files:
+            params.setdefault("attachments", files)  # in the plan hash: the approval is for these files, byte for byte
         params.setdefault("draft_id", _draft_id((proposal.get("params") or {}).get("draft_ref") or ((task.get("entities") or {}).get("draft") or {}).get("ref")))
     elif operation == "calendar.respond":
         latest = next((s for s in signals if s.get("kind") == "calendar"), None)
@@ -291,7 +303,13 @@ def _github_open_pr(params: dict[str, Any], provider: Any) -> NativeOutcome:
 
 def _gmail_reply(params: dict[str, Any], provider: Any) -> NativeOutcome:
     draft_id = str(params.get("draft_id") or "")
-    if draft_id and hasattr(provider, "send_draft"):
+    files = verify_attachments(params.get("attachments"))  # PermissionError when a file is gone or no longer the same
+    if files:
+        if not provider.capabilities().get("attach"):
+            raise PermissionError("this mail provider cannot attach files")
+        raw = provider.reply(params["message_id"], params["body"], reply_all=bool(params.get("reply_all", True)), attachments=files)
+        how = f"replied to message {params['message_id']} with {len(files)} file(s)"
+    elif draft_id and hasattr(provider, "send_draft"):
         raw = provider.send_draft(draft_id)
         how = f"sent draft {draft_id}"
     else:

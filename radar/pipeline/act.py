@@ -13,6 +13,7 @@ from ..delivery.cadence import next_delivery
 from ..i18n import t
 from ..trust import decision_like, may_auto_run, needs_consent
 from .sessions import session_of, task_session_active
+from ..mailtext import attachment_facts, unsendable
 from ..models import TASK_TERMINAL, canonical_hash
 from ..preferences import applicable
 from .attention import resolve
@@ -403,6 +404,10 @@ def remember_draft(store: Any, task: dict[str, Any], extract: dict[str, Any], no
     entities = dict(task.get("entities") or {})
     if text and not _has_correspondent(store, task["id"]):
         text = ""  # nobody to reply to (a chat session, a calendar event): a "reply" makes no sense
+    if text and unsendable(text, subject=_thread_subject(store, task["id"])):
+        # An unfilled field or a subject line inside the body: not a reply, whoever wrote it. On 2026-11-16 a text
+        # with «[ID and IBAN]» in it, written by a step that had found nothing, was what the owner's «send» sent.
+        text = ""
     if text:
         refs = [str(r) for r in (extract.get("job") or {}).get("refs") or [] if isinstance(r, (str, int))]
         ref = next((r for r in refs if "draft" in r.lower()), "")
@@ -476,6 +481,22 @@ def _has_correspondent(store: Any, task_id: str) -> bool:
         return any(s.get("kind") in ("email", "github") for s in store.signals_for_task(task_id, limit=20))
     except Exception:
         return True
+
+
+def _thread_of(store: Any, session_id: str) -> list[str]:
+    try:
+        return [str(s) for s in store.session_thread(session_id)] or [session_id]
+    except Exception:
+        return [session_id]
+
+
+def _thread_subject(store: Any, task_id: str) -> str:
+    try:
+        mails = [s for s in store.signals_for_task(task_id, limit=20) if s.get("kind") == "email"]
+    except Exception:
+        return ""
+    mails.sort(key=lambda s: str(s.get("occurred_at") or ""), reverse=True)
+    return str((mails[0].get("meta") or {}).get("subject") or mails[0].get("title") or "") if mails else ""
 
 
 def forget_draft(store: Any, task_id: str, now: str) -> None:
@@ -581,6 +602,8 @@ def apply(
         )
         task = store.get_task(task_id)
         created = True
+        if session_of(signals) and hasattr(store, "link_task_session"):
+            store.link_task_session(task_id, session_of(signals), "born", now=now)
         roles = ["origin"] + ["context"] * (len(signals) - 1)
     else:
         task_id = task["id"]
@@ -628,6 +651,12 @@ def apply(
     # approved still get through.
     kept_closed = owner_closed(task) and not owner_bundle and not owner_followup
     if kept_closed:
+        target_status = task.get("status")
+    # A conversation that continues a closed task it was not born in (the owner was told about it, or answered it, in
+    # that chat) lands on it and reopens nothing: what is closed stays closed, and a matter the closed task does not
+    # cover is a new task (owner's rule, 2026-11-16).
+    chat = session_of(signals)
+    if chat and not created and task.get("status") in TASK_TERMINAL and str((task.get("entities") or {}).get("session_id") or "") not in _thread_of(store, chat):
         target_status = task.get("status")
     kept_open = False
     if target_status == "done" and decision not in ("completes", "contradicts") and task.get("kind") == "trip" and lies_ahead(task, now_dt):
@@ -818,6 +847,13 @@ def apply(
             if operation.startswith("gmail.") and not draft_basis_holds(store, task, item, extract, owner_bundle=owner_bundle):
                 drafts_dropped += 1  # a reply with nothing verifiable behind it is not offered
                 continue
+            files: list[dict[str, Any]] = []
+            if operation.startswith("gmail.") and item.get("attachments") and not item.get("existing_id"):
+                found = attachment_facts(item["attachments"])
+                if found is None:
+                    drafts_dropped += 1  # a file that is missing, hidden or a credential: the reply is not offered
+                    continue
+                files = found
             if matches_declined(item, declined):
                 suppressed += 1
                 continue
@@ -879,6 +915,7 @@ def apply(
                       **({"own_doing": True} if own_doing else {}),  # raised by Radar's own review or step in a chat task: never wakes the owner
                       **({"fact": item["fact"]} if isinstance(item.get("fact"), dict) and item["fact"].get("key") else {}),
                       **({"then": item["then"]} if item.get("then") else {}), **({"basis": item["basis"]} if item.get("basis") else {}),
+                      **({"attachments": files} if files else {}),  # name, size and hash: shown in the notice, bound to the approval
                       **({"draft": draft["text"], "draft_ref": draft.get("ref", "")} if draft else {})}
             existing_id = item.get("existing_id") or item.get("restore_id")
             if existing_id:

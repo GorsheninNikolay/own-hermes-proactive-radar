@@ -17,10 +17,14 @@ from __future__ import annotations
 
 import base64
 import json
+import mimetypes
 import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any, Callable
@@ -117,8 +121,19 @@ def gmail_attachments(msg: dict[str, Any]) -> list[str]:
     return [str(p.get("filename")) for p in _parts(msg.get("payload") or {}) if p.get("filename")]
 
 
-def mime_raw(*, to: str, subject: str, body: str, cc: str = "", in_reply_to: str = "", references: str = "") -> str:
-    message = MIMEText(body)
+def mime_raw(*, to: str, subject: str, body: str, cc: str = "", in_reply_to: str = "", references: str = "",
+             attachments: list[str] | None = None) -> str:
+    message: Any = MIMEText(body)
+    if attachments:
+        message = MIMEMultipart()
+        message.attach(MIMEText(body))
+        for path in attachments:
+            kind = mimetypes.guess_type(path)[0] or "application/octet-stream"
+            part = MIMEBase(*kind.split("/", 1))
+            part.set_payload(Path(path).read_bytes())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", "attachment", filename=Path(path).name)
+            message.attach(part)
     message["To"] = to
     message["Subject"] = subject
     if cc:
@@ -216,7 +231,7 @@ class GwsMailProvider(MailProvider):
         raw = mime_raw(to=", ".join(to), subject=subject, body=body)
         return self._sent(self.client.call(["gmail", "users", "messages", "send"], params={"userId": self.user}, body={"raw": raw}), "Email sent")
 
-    def reply(self, message_id: str, body: str, *, reply_all: bool = False) -> dict[str, Any]:
+    def reply(self, message_id: str, body: str, *, reply_all: bool = False, attachments: list[str] | None = None) -> dict[str, Any]:
         self._writable()
         original = self._get(message_id, fmt="metadata", headers=["From", "To", "Cc", "Subject", "Message-ID"])
         headers = gmail_headers(original)
@@ -224,7 +239,8 @@ class GwsMailProvider(MailProvider):
         if not subject.lower().startswith("re:"):
             subject = f"Re: {subject}"
         cc = ", ".join(x for x in (headers.get("to", ""), headers.get("cc", "")) if x) if reply_all else ""
-        raw = mime_raw(to=headers.get("from", ""), subject=subject, body=body, cc=cc, in_reply_to=headers.get("message-id", ""))
+        raw = mime_raw(to=headers.get("from", ""), subject=subject, body=body, cc=cc, in_reply_to=headers.get("message-id", ""),
+                       attachments=attachments)
         result = self.client.call(["gmail", "users", "messages", "send"], params={"userId": self.user},
                                   body={"raw": raw, "threadId": str(original.get("threadId") or "")})
         return self._sent(result, "Email sent")
@@ -245,7 +261,7 @@ class GwsMailProvider(MailProvider):
 
     def capabilities(self) -> dict[str, bool]:
         return {"search": True, "read": True, "thread": True, "draft": self.allow_write, "reply": self.allow_write,
-                "send": self.allow_write, "send_draft": self.allow_write}
+                "send": self.allow_write, "send_draft": self.allow_write, "attach": self.allow_write}
 
 
 def rfc3339(value: str) -> str:
@@ -370,7 +386,9 @@ class ScriptMailProvider(MailProvider):
     def thread(self, thread_id: str, *, max_chars: int = 4000) -> str:
         raise ProviderError("hermes_google does not read threads")
 
-    def reply(self, message_id: str, body: str, *, reply_all: bool = False) -> dict[str, Any]:
+    def reply(self, message_id: str, body: str, *, reply_all: bool = False, attachments: list[str] | None = None) -> dict[str, Any]:
+        if attachments:
+            raise ProviderError("hermes_google cannot attach files")
         if not self.allow_write:
             raise ProviderError("hermes_google mail provider is read-only")
         data = self.client.call("gmail", "reply", message_id, "--body", body)
@@ -499,7 +517,9 @@ class MappedCliMailProvider(MailProvider):
         sent_id = str(_pick(data, str(fields.get("id") or "id")) or "") if isinstance(data, dict) else ""
         return {"id": sent_id, "result": f"Email sent successfully with ID: {sent_id}" if sent_id else "Email sent"}
 
-    def reply(self, message_id: str, body: str, *, reply_all: bool = False) -> dict[str, Any]:
+    def reply(self, message_id: str, body: str, *, reply_all: bool = False, attachments: list[str] | None = None) -> dict[str, Any]:
+        if attachments:
+            raise ProviderError("this mail connector cannot attach files")
         return self._write("reply", message_id=message_id, body=body)
 
     def send(self, *, to: list[str], subject: str, body: str) -> dict[str, Any]:

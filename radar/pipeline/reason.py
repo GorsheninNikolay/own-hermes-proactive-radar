@@ -147,6 +147,10 @@ def defects(plan: dict[str, Any]) -> list[str]:
                        'decision only the owner can take, make it an "ask" proposal whose two option labels are the two answers; if you can verify it '
                        "yourself, a read step; otherwise drop it.")
     asked = [c for c in plan.get("checks") or [] if c.get("ask_user") and not c.get("unbacked")]
+    if asked and _questions(plan):
+        out.append("The plan asks the owner a check and a question at once: they get two messages about one matter and answer one of them. "
+                   'Keep the "ask" proposal when the matter is theirs to decide and set ask_user false on the check (it stays as a note); keep '
+                   "the check alone only when two facts disagree and nothing is to be decided.")
     message = str(plan.get("message") or "")
     if (not plan.get("proposals") and not asked and (plan.get("escalation") or {}).get("decision") == "ask" and ("?" in message or "？" in message)
             and plan["task_match"]["decision"] != "none"):
@@ -155,9 +159,17 @@ def defects(plan: dict[str, Any]) -> list[str]:
     return out
 
 
+def _questions(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    return [p for p in plan.get("proposals") or [] if p.get("operation") == "ask"]
+
+
 def settle(plan: dict[str, Any]) -> dict[str, Any]:
-    """The plan with what stayed malformed made harmless: an unbacked check is kept as a note and not asked."""
-    checks = [{**c, "ask_user": False} if c.get("unbacked") else c for c in plan.get("checks") or []]
+    """The plan with what stayed malformed made harmless: an unbacked check is kept as a note and not asked, and so
+    is any check of a plan that also asks a question. On 2026-11-12 one plan sent «is it right that the courier
+    retries tomorrow while you are away?» under «yes, correct / no, a mistake» and, the same minute, «is anyone home
+    tomorrow?»: the owner answered the first in words and the question that mattered expired unanswered."""
+    doubled = bool(_questions(plan))
+    checks = [{**c, "ask_user": False} if c.get("unbacked") or doubled else c for c in plan.get("checks") or []]
     return {**plan, "checks": checks}
 
 
@@ -211,6 +223,7 @@ def validate_plan(raw: Any) -> dict[str, Any]:
             entry["then"] = item.get("then") if item.get("then") in ("step", "nothing") else ""  # "" = not said: kept
         if operation.startswith("gmail."):
             entry["basis"] = item.get("basis") if item.get("basis") in DRAFT_BASES else ""  # "" = no basis: dropped
+            entry["attachments"] = [_clip(a, 500) for a in (item.get("attachments") or []) if isinstance(a, str) and a.strip()][:8]
         proposals.append(entry)
     notify = raw.get("notify") if isinstance(raw.get("notify"), dict) else {}
     disposition = notify.get("disposition", "digest")

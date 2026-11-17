@@ -190,3 +190,22 @@ def test_a_reminder_asked_for_a_moment_is_the_agents_to_set_and_a_bare_later_is_
     assert all(t["status"] != "snoozed" for t in store.list_tasks(limit=10))  # nothing snoozed until tomorrow behind their back
     plain = asyncio.run(handle_text_reply(rt, _event("luego")))  # the floor's bare «later»: settled here, as the button would
     assert plain["action"] == "skip" and any(t["status"] == "snoozed" for t in store.list_tasks(limit=10))
+
+
+def test_a_yes_said_in_a_sentence_reaches_the_task_and_a_bare_yes_does_not(store):
+    """2026-11-12: «Debería estar Fran» settled a check as «yes, correct» and stayed in a note no plan reads."""
+    cfg = active_config()
+    check = [{"id": "ok", "label": "Sí, es correcto"}, {"id": "wrong", "label": "No, es un error"}]
+    transports = _notice(store, cfg, [("q", "check", check, "¿Es correcto que reintenten mañana estando tú fuera?")])
+    rt = _rt(store, cfg, transports, answers=[{"intent": "approve", "proposal_index": 0, "option": "", "reason": "someone will be home"}])
+    handled = asyncio.run(handle_text_reply(rt, _event("Debería estar Fran en casa")))
+    assert handled["action"] == "skip" and store.get_proposal("q")["status"] == "declined"  # the check is settled as before
+    [words] = [s for s in store.list_signals() if s["kind"] == "user_reply"]
+    assert words["meta"]["answer"] == "Debería estar Fran en casa" and words["meta"]["task_id"] == "t1"
+
+
+def test_a_bare_yes_adds_no_words_to_the_task(store):
+    cfg = active_config()
+    transports = _notice(store, cfg, [("s", "web.read", [{"id": "do", "label": "Adelante"}, {"id": "no", "label": "Descartar"}], "Leer el seguimiento")])
+    asyncio.run(handle_text_reply(_rt(store, cfg, transports), _event("sí")))
+    assert store.get_proposal("s")["status"] != "sent" and not [s for s in store.list_signals() if s["kind"] == "user_reply"]

@@ -252,7 +252,23 @@ def test_a_decision_dressed_as_a_check_is_sent_back_to_the_planner_once_and_then
     finally:
         reason.plan = original
     assert len(calls) == 2 and "Subo la memoria" in calls[1]["repair"][0]
-    assert [c["description"] for c in result["checks"] if c["ask_user"]] == [real["description"]] and result["proposals"][0]["operation"] == "ask"
+    # The decision became a question; the check beside it is kept as a note and not asked in the same breath.
+    assert [c["description"] for c in result["checks"]] == [real["description"]] and result["proposals"][0]["operation"] == "ask"
+    assert not any(c["ask_user"] for c in result["checks"])
+
+
+def test_a_plan_never_asks_a_check_and_a_question_at_once():
+    """2026-11-12: «is it right that the courier retries tomorrow while you are away?» (yes, correct / no, a mistake)
+    and «is anyone home tomorrow?» left in the same minute; the owner answered the first and the second expired."""
+    check = {"description": "¿Es correcto que reintenten mañana estando tú fuera?", "severity": "high", "ask_user": True,
+             "evidence": ["aviso: nuevo intento el 13", "agenda: fuera el 13"]}
+    both = reason.validate_plan(plan_answer(checks=[check], proposals=[{**ASK, "title": "¿Hay alguien mañana en casa?"}]))
+    [issue] = reason.defects(both)
+    assert "at once" in issue
+    settled = reason.settle(both)
+    assert [c["ask_user"] for c in settled["checks"]] == [False] and [p["operation"] for p in settled["proposals"]] == ["ask"]
+    alone = reason.validate_plan(plan_answer(checks=[check], proposals=[]))
+    assert reason.defects(alone) == [] and reason.settle(alone)["checks"][0]["ask_user"] is True
 
 
 def test_a_question_in_the_message_with_no_way_to_answer_is_a_defect():

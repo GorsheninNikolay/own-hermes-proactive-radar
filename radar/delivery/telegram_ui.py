@@ -11,7 +11,7 @@ from ..i18n import t
 from ..jobs.service import start_or_wait
 from ..trust import describe, level_summary
 from .brief import agent_brief
-from .feedback import understand
+from .feedback import trivial, understand
 from .dispatch import draft_document
 from .notice import CALLBACK_PREFIX, DRAFT_INLINE, MAX_LABEL, TASK_PREFIX, decision_buttons, edited_text, fit, proposal_buttons, task_buttons
 from .responses import OPEN_PROPOSAL, act_on_task, local_now, record_owner_words, resolve_reply, respond_to_proposal
@@ -212,6 +212,17 @@ async def send_detail(rt: Any, result: dict[str, Any]) -> bool:
     return True
 
 
+def _task_open(store: Any, result: dict[str, Any], row: dict[str, Any]) -> bool:
+    """Whether the task the reply was about is still open: an answer that closed it has nothing left to tell it."""
+    from .responses import TASK_TERMINAL
+
+    task_id = (result.get("proposal") or {}).get("task_id") or row.get("task_id") or (row.get("payload") or {}).get("task_id")
+    try:
+        return bool(task_id) and store.get_task(str(task_id)).get("status") not in TASK_TERMINAL
+    except KeyError:
+        return False
+
+
 def destination_platform(rt: Any) -> str:
     """The platform the owner chose to be reached on (Telegram unless the configuration says otherwise)."""
     return str((rt.config.get("destination") or {}).get("platform") or "telegram").strip().lower()
@@ -254,6 +265,12 @@ async def handle_text_reply(rt: Any, event: Any) -> dict[str, Any] | None:
                                     actor=actor, now_dt=rt.clock(), result=result, outbox_row=row)
     if result.get("outcome") == "accepted":
         with_followup(result, _after_accept(rt, result, "do"))
+    if result.get("outcome") in ("accepted", "declined", "acknowledged") and not trivial(text) and _task_open(rt.store, result, row):
+        # A yes or a no said in a sentence says more than the button it was matched to: the task hears the sentence.
+        # On 2026-11-12 «Fran should be there» settled a check as «yes, correct» and stayed in a note no plan reads,
+        # so the question it answered (is anyone home for the courier?) expired unanswered.
+        record_owner_words(rt.store, outbox_row=row, text=text, actor=actor, channel=home, now_dt=rt.clock(),
+                           language=rt.config.get("owner", {}).get("language", "es"))
     if result.get("outcome") in ("unclear", "noted"):
         # Words no button stands for: the task hears them (the next plan starts from them). When they are unclear the
         # chat agent still answers the owner (it can act on the task with radar_task); a plain yes or no to a message

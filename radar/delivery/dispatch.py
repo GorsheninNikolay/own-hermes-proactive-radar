@@ -10,10 +10,11 @@ import logging
 
 from ..i18n import t
 from ..models import TASK_TERMINAL, canonical_hash
-from ..trust import decision_like, needs_consent
+from ..operations.native import mail_text
+from ..trust import EMAIL_SEND, decision_like, needs_consent
 from .cadence import _tz, deadline, digest_due, latest_moment, next_paced, paced, reminder_gap, stale, waking_window
 from .context import thread_context
-from .notice import DRAFT_INLINE, TASK_PREFIX, _esc, build_interrupt, build_notice, decision_buttons
+from .notice import DRAFT_INLINE, TASK_PREFIX, _esc, build_interrupt, build_notice, decision_buttons, mail_block
 from .remind import fallback_text
 from .snooze import deadline_of, later_button
 from ..render.report import render_task_report
@@ -308,8 +309,10 @@ def build_reminder(selection: dict[str, Any], text: str, *, language: str, now_d
         task_id = selection["items"][0]["task"]["id"]
         if selection.get("news"):  # a pure-news reminder (an invoice, a receipt): one tap to stop hearing about this sender
             buttons.append([{"label": t(language, "btn_mute"), "data": f"{TASK_PREFIX}:{task_id}:mute"[:64]}])
+    # A mail step shows what it sends, in a reminder as in an interruption: the text and the files, never a bare «send it?».
+    mail = [block for block in (mail_block(entry["decision"], entry.get("task"), language) for entry in decisions) if block]
     payload: dict[str, Any] = {
-        "text": _esc(text), "parse_mode": "HTML", "buttons": buttons, "kind": "digest",
+        "text": "\n\n".join([_esc(text), *mail]), "parse_mode": "HTML", "buttons": buttons, "kind": "digest",
         "proposal_ids": [entry["decision"]["id"] for entry in decisions], "news_ids": [p["id"] for p in selection.get("news") or []],
     }
     if task_id:
@@ -411,6 +414,12 @@ def dispatch(store: Any, config: dict[str, Any], now_dt: datetime, *, reminder: 
     if selection and sent_today + capped < limit:
         text = str(selection.get("text") or "") or fallback_text(selection["items"], language)
         payload = build_reminder(selection, text, language=language, now_dt=now_dt, config=config)
+        long_mail = next((mail_text(e["decision"], e.get("task")) for e in selection["items"] if e.get("decision")
+                          and str(e["decision"].get("operation_id") or "") in EMAIL_SEND and len(mail_text(e["decision"], e.get("task"))) > DRAFT_INLINE), "")
+        if long_mail and payload.get("task_id"):
+            document = draft_document(payload["task_id"], long_mail, language=language, now_dt=now_dt)
+            if document:
+                payload["document"] = document  # the part that did not fit travels whole, as a file
         listed = payload["proposal_ids"] + payload["news_ids"]
         outbox_id = str(uuid4())
         key = "digest:" + canonical_hash({"at": now[:13], "proposals": sorted(listed)})[:24]

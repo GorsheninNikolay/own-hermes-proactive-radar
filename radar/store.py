@@ -2682,6 +2682,58 @@ class Store:
             )
         return True
 
+    def link_task_session(self, task_id: str, session_id: str, role: str, *, now: str) -> bool:
+        """Record that ``task_id`` has to do with the chat ``session_id``: ``born`` there, ``noticed`` there (a notice
+        about it was delivered to that chat) or ``answered`` there. False when there is nothing to link."""
+        task, session = str(task_id or "").strip(), str(session_id or "").strip()
+        if not task or not session or role not in ("born", "noticed", "answered"):
+            return False
+        with self.transaction() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO task_sessions (profile_key, owner_id, task_id, session_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (*self._scope_values, task, session, role, now),
+            )
+        return True
+
+    def tasks_related_to_sessions(self, session_ids: Any, *, limit: int = 6) -> list[dict[str, Any]]:
+        """Tasks of any status linked to these sessions, the latest link first, each with ``related`` (the roles)."""
+        ids = [str(s) for s in dict.fromkeys(session_ids or []) if s]
+        if not ids:
+            return []
+        marks = ",".join("?" for _ in ids)
+        rows = self.db.execute(
+            f"""SELECT task_id, GROUP_CONCAT(DISTINCT role) AS roles, MAX(created_at) AS at FROM task_sessions
+                WHERE profile_key=? AND owner_id=? AND session_id IN ({marks}) GROUP BY task_id ORDER BY at DESC LIMIT ?""",
+            (*self._scope_values, *ids, max(1, min(int(limit), 50))),
+        ).fetchall()
+        found: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                task = self.get_task(str(row["task_id"]))
+            except KeyError:
+                continue
+            found.append({**task, "related": sorted(str(row["roles"] or "").split(","))})
+        return found
+
+    def tasks_told_between(self, since: str, until: str) -> dict[str, str]:
+        """``{task_id: role}`` for the tasks the owner was told about (a notice or reminder sent: ``noticed``) or
+        answered (``answered``, which wins) between two moments."""
+        told: dict[str, str] = {}
+        for row in self.db.execute(
+            """SELECT DISTINCT task_id FROM outbox WHERE profile_key=? AND owner_id=? AND status='sent' AND task_id IS NOT NULL
+               AND kind IN ('notice', 'digest') AND updated_at>=? AND updated_at<=?""",
+            (*self._scope_values, since, until),
+        ).fetchall():
+            told[str(row[0])] = "noticed"
+        for row in self.db.execute(
+            """SELECT DISTINCT json_extract(meta_json, '$.task_id') FROM signals WHERE profile_key=? AND owner_id=? AND kind='user_reply'
+               AND occurred_at>=? AND occurred_at<=?""",
+            (*self._scope_values, since, until),
+        ).fetchall():
+            if row[0]:
+                told[str(row[0])] = "answered"
+        return told
+
     def session_thread(self, session_id: str, *, limit: int = 40) -> list[str]:
         """Every session of the conversation ``session_id`` belongs to, as far as radar was told: this one first, then
         the windows before and after it along the compaction links."""

@@ -5,6 +5,9 @@ import html
 from typing import Any
 
 from ..i18n import t
+from ..mailtext import folder_label, human_size
+from ..operations.native import mail_text
+from ..trust import EMAIL_SEND
 from ..pipeline.checklists import label as checklist_label
 from .snooze import deadline_of, later_button
 
@@ -170,6 +173,21 @@ def _compose(task: dict[str, Any], proposals: list[dict[str, Any]], *, language:
     return "\n".join(lines), buttons, ordered
 
 
+def mail_block(proposal: dict[str, Any], task: dict[str, Any] | None, language: str, *, cap: int = DRAFT_INLINE) -> str:
+    """What a mail step sends, under the sentence that asks for it: the exact text and each file by name and size, or
+    the plain statement that no file goes. The owner approves mail knowing what leaves (2026-11-16: «send the signed
+    sheet» sent a text they had not been shown, with no sheet). Empty for a step that is not mail."""
+    if str(proposal.get("operation_id") or "") not in EMAIL_SEND:
+        return ""
+    text = mail_text(proposal, task)
+    if not text:
+        return ""
+    files = [f for f in ((proposal.get("params") or {}).get("attachments") or []) if isinstance(f, dict) and f.get("name")]
+    listed = ", ".join(f"{_esc(str(f['name']))} ({human_size(f.get('size'))}, {_esc(folder_label(f.get('path')))})" for f in files)
+    tail = f"<b>{_esc(t(language, 'mail_files'))}:</b> {listed}" if files else _esc(t(language, "mail_no_files"))
+    return f"<b>{_esc(t(language, 'mail_text'))}:</b>\n<i>{_esc(fit(text, cap))}</i>\n{tail}"
+
+
 def build_interrupt(task: dict[str, Any], proposals: list[dict[str, Any]], text: str, *, language: str, now_dt: Any = None,
                     config: dict[str, Any] | None = None) -> dict[str, Any]:
     """An immediate notice in prose: the model's text, then the draft the owner must see if the step carries one, with
@@ -178,8 +196,11 @@ def build_interrupt(task: dict[str, Any], proposals: list[dict[str, Any]], text:
     _, buttons, ordered = _compose(task, proposals, language=language, message="", findings=None, rationale_cap=0, draft_cap=0,
                                    situation_cap=0, context=None, excerpt_cap=0, now_dt=now_dt, config=config)
     body = _esc(tidy_prose(text))
+    mail = next((block for block in (mail_block(p, task, language) for p in ordered) if block), "")
     draft = next((p.get("params", {}).get("draft") for p in ordered if p.get("params", {}).get("draft")), "")
-    if draft:
+    if mail:
+        body += "\n\n" + mail
+    elif draft:
         body += f"\n\n<b>{_esc(t(language, 'draft'))}:</b>\n<i>{_esc(fit(draft, DRAFT_INLINE))}</i>"
     return {
         "text": body, "parse_mode": "HTML", "buttons": buttons, "task_id": task["id"],

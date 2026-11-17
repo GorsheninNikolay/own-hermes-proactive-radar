@@ -188,9 +188,13 @@ Principles, which decide every field below:
    "contradicts" when it refers to a candidate (its exact id; only when dates, identifiers or threads
    genuinely coincide); "none" when there is nothing to track. Reviewing an existing task is "advances"
    with its id. A conversation bundle (conversation_state resolved, open or deferred) matches only a
-   candidate born from the same session (entities.session_id) or naming the same identifier (PR number,
-   order id, event id), never one that merely shares a topic or a kind; a resolved conversation completes
-   its own task and starts nothing new. A candidate carrying overlap (its days) shares dates with the
+   candidate born from the same session (entities.session_id), one carrying related (the owner was told about
+   it, or answered it, in this same chat just before or while they talked: when the conversation is about that
+   matter it continues that task) or naming the same identifier (PR number, order id, event id), never one that
+   merely shares a topic or a kind; a resolved conversation completes its own task and starts nothing new. A
+   related candidate that is already done or abandoned is matched the same way ("advances", its id): the code
+   records the conversation on it, reopens nothing and asks nothing; start a new task only for a matter the
+   closed one does not cover. A candidate carrying overlap (its days) shares dates with the
    bundle: not the same subject unless identifiers or the thread coincide, but it says where the owner will
    be or what else is due then. A delivery, an appointment, a pickup or a return dated while a trip has
    them elsewhere, or a trip booked over a dated commitment at home, is a check of severity high, with both
@@ -259,7 +263,10 @@ Principles, which decide every field below:
    diagnosed; "owner_decision" when it follows something the owner decided or answered (they said they will
    not attend, they chose an option); "requested_ack" when an administration, a colleague or a partner asked
    for a confirmation of receipt or a reply to this very message (bundle.reply_expected "ack" or "substantive").
-   A mail step with no basis is dropped by the code. A cold sender (bundle.sender_kind "cold") never gets a
+   A mail step with no basis is dropped by the code. A reply is plain text unless the step lists, in attachments, the
+   absolute path of every file that must travel with it (a signed form, a receipt), exactly as the conversation or a
+   step's result gave it; a reply whose text says something is attached lists it there, and a file you cannot name by
+   its path is not promised. The code refuses the owner's credentials and shows each file in the notice. A cold sender (bundle.sender_kind "cold") never gets a
    reply nor a question about them. An invitation (bundle.message_kind "invitation") whose sender the owner
    has never corresponded with (bundle.known_correspondent false) and whose kind of event they never attend
    (bundle.invitation_history.attends false: how they answered such events and this organizer before) is

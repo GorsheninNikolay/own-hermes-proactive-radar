@@ -88,9 +88,12 @@ class GmailMcpProvider(MailProvider):
             args["inReplyTo"] = in_reply_to
         return {"result": parse.content_texts(self._call("draft_email", args))}
 
-    def reply(self, message_id: str, body: str, *, reply_all: bool = False) -> dict[str, Any]:
+    def reply(self, message_id: str, body: str, *, reply_all: bool = False, attachments: list[str] | None = None) -> dict[str, Any]:
         tool = "reply_all" if reply_all else "reply_all"
-        return {"result": parse.content_texts(self._call(tool, {"messageId": message_id, "body": body}))}
+        args: dict[str, Any] = {"messageId": message_id, "body": body}
+        if attachments:
+            args["attachments"] = list(attachments)  # the server reads the files itself, from these paths
+        return {"result": parse.content_texts(self._call(tool, args))}
 
     def send(self, *, to: list[str], subject: str, body: str) -> dict[str, Any]:
         return {"result": parse.content_texts(self._call("send_email", {"to": list(to), "subject": subject, "body": body}))}
@@ -101,7 +104,7 @@ class GmailMcpProvider(MailProvider):
 
     def capabilities(self) -> dict[str, bool]:
         write = not self.read_only
-        return {"search": True, "read": True, "thread": True, "draft": write, "reply": write, "send": write}
+        return {"search": True, "read": True, "thread": True, "draft": write, "reply": write, "send": write, "attach": write}
 
 
 _ATTACHMENTS_HEAD = re.compile(r"^attachments(\s*\(\d+\))?\s*:?\s*$", re.I)

@@ -138,7 +138,55 @@ def open_steps(store: Any, task_id: str, limit: int = 10) -> list[dict[str, Any]
     return out
 
 
-def candidate_tasks(store: Any, extract: dict[str, Any], *, limit: int = 6, session_id: str = "", session_ids: Any = None, group_key: str = "") -> list[dict[str, Any]]:
+RELATED_WINDOW_HOURS = 6   # a chat that follows a notice or an answer within this long may be about that task
+RELATED_CLOSED_HOURS = 48  # a task closed longer ago than this is no longer offered to a conversation
+
+
+def related_tasks(store: Any, config: dict[str, Any], signals: list[dict[str, Any]], session_ids: Any, now_dt: Any) -> list[dict[str, Any]]:
+    """The tasks this conversation may be continuing because of where it happens: the owner was told about them, or
+    answered them, in this same chat shortly before (or while) they talked. The link is written when the conversation
+    arrives, the first moment both ends are known (a notice is delivered to a chat, not to a session), and it stays:
+    later turns of the same thread still find the task. Tasks closed in the last days come along too, as closed:
+    on 2026-11-16 the conversation was judged half an hour after it ended, when the mail it was about had been sent
+    and its task closed, and it became a new task that asked for the send again."""
+    from datetime import datetime, timedelta, timezone
+
+    turns = [s for s in signals if s.get("kind") == "session_turn"]
+    session_id = next((str((s.get("meta") or {}).get("session_id") or "") for s in turns if (s.get("meta") or {}).get("session_id")), "")
+    if not session_id or not hasattr(store, "tasks_related_to_sessions"):
+        return []
+
+    def moment(value: Any) -> datetime | None:
+        try:
+            parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+    def text(value: datetime) -> str:
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    times = sorted(t for t in (moment(s.get("occurred_at")) for s in turns) if t is not None)
+    platform = next((str((s.get("meta") or {}).get("platform") or "").lower() for s in turns if (s.get("meta") or {}).get("platform")), "")
+    home = str(((config or {}).get("destination") or {}).get("platform") or "").lower()
+    same_chat = not (platform and home and platform != home)  # a chat on another platform is not where the notice went
+    if times and same_chat:
+        try:
+            told = store.tasks_told_between(text(times[0] - timedelta(hours=RELATED_WINDOW_HOURS)), text(times[-1]))
+            for task_id, role in told.items():
+                store.link_task_session(task_id, session_id, role, now=text(now_dt))
+        except Exception:
+            pass
+    try:
+        linked = store.tasks_related_to_sessions([session_id, *[str(s) for s in (session_ids or []) if s]])
+    except Exception:
+        return []
+    fresh = text(now_dt - timedelta(hours=RELATED_CLOSED_HOURS))
+    return [task for task in linked if task.get("status") in OPEN_STATUSES or str(task.get("updated_at") or "") >= fresh]
+
+
+def candidate_tasks(store: Any, extract: dict[str, Any], *, limit: int = 6, session_id: str = "", session_ids: Any = None, group_key: str = "",
+                    related: Any = ()) -> list[dict[str, Any]]:
     """Open tasks the bundle may refer to. A task already fed by the same thread (``group_key``) comes
     first: a second advisory in the same mail thread is the same task, whatever its wording. A conversation
     bundle starts with the tasks born from the same thread — every session a context compaction split it into,
@@ -151,13 +199,18 @@ def candidate_tasks(store: Any, extract: dict[str, Any], *, limit: int = 6, sess
     else:
         query = " ".join([extract.get("title", ""), extract.get("summary", ""), _entities_text(entities)])
     found: dict[str, dict[str, Any]] = {}
+    roles: dict[str, list[str]] = {}
+    for task in related or ():  # told or answered in this very chat: first in the list, open or just closed
+        if any(role in ("noticed", "answered") for role in task.get("related") or []):
+            found[task["id"]] = task
+            roles[task["id"]] = [r for r in task.get("related") or [] if r in ("noticed", "answered")]
     if group_key and not session_id and hasattr(store, "tasks_for_group"):
         for task in store.tasks_for_group(group_key, statuses=OPEN_STATUSES, limit=limit):
             found[task["id"]] = task
     if session_id:
         thread = [str(s) for s in (session_ids or [session_id]) if s] or [session_id]
         for task in store.tasks_for_sessions(thread, statuses=OPEN_STATUSES, limit=limit):
-            found[task["id"]] = task
+            found.setdefault(task["id"], task)
     for task in store.search_tasks(query, limit=limit) if query else []:
         found.setdefault(task["id"], task)
     overlaps: dict[str, str] = {}
@@ -177,6 +230,8 @@ def candidate_tasks(store: Any, extract: dict[str, Any], *, limit: int = 6, sess
     candidates = [compact_task(task) for task in ordered if task in dated or task in rest]
     for candidate in candidates:
         candidate["open_steps"] = open_steps(store, str(candidate.get("id") or ""), limit=6)
+        if candidate.get("id") in roles:
+            candidate["related"] = roles[candidate["id"]]  # the owner was told about it, or answered it, in this chat just before
         if candidate.get("id") in overlaps:
             candidate["overlap"] = overlaps[candidate["id"]]  # shares days with the bundle: where the owner will be, or what else is due then
     return candidates

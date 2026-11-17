@@ -40,7 +40,7 @@ def test_the_prose_notice_keeps_the_classic_keyboard_order_and_draft(store):
     classic = build_notice(task, items, language="es", message="Brightbot cancela el pedido 4471")
     prose = build_interrupt(task, items, "Brightbot acaba de cancelar el pedido 4471 y Ana espera que se lo confirmes hoy.\n¿Le envío la respuesta?", language="es")
     assert prose["text"].startswith("Brightbot acaba de cancelar el pedido 4471 y Ana espera que se lo confirmes hoy. ¿Le envío la respuesta?")
-    assert "<b>Propongo responder:</b>" in prose["text"] and "reembolso de 120,50 €" in prose["text"]
+    assert "<b>Texto que se enviará:</b>" in prose["text"] and "Sin adjuntos" in prose["text"] and "reembolso de 120,50 €" in prose["text"]
     assert "<b>🛒" not in prose["text"] and "Puedo hacer" not in prose["text"] and "Responde a este mensaje" not in prose["text"]
     assert prose["buttons"] == classic["buttons"] and prose["proposal_ids"] == classic["proposal_ids"] == ["news", "check", "reply"]
     assert prose["kind"] == "notice" and prose["task_id"] == "order" and prose["parse_mode"] == "HTML"
