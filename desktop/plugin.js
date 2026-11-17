@@ -567,11 +567,13 @@ function effectColor(effect) {
 function RuleDot({ effect }) { return jsx('span', { className: 'd', style: { background: effectColor(effect) } }) }
 function ruleLabel(p) {
   const s = p.scope || {}
-  return s.sender || s.repo || s.project || s.subject_stem || p.instruction || p.summary || '—'
+  // A bot relayed from one address is named by its display name, so show it beside the address it comes from.
+  return (s.sender && s.sender_name ? `${s.sender} (${s.sender_name})` : s.sender || s.sender_name)
+    || s.repo || s.project || s.subject_stem || p.instruction || p.summary || '—'
 }
 function scopeText(s) {
   const parts = []
-  ;['sender', 'repo', 'project', 'account', 'kind', 'source_kind', 'subject_stem'].forEach((k) => { if (s && s[k]) parts.push(`${k}: ${s[k]}`) })
+  ;['sender', 'sender_name', 'repo', 'project', 'account', 'kind', 'source_kind', 'subject_stem'].forEach((k) => { if (s && s[k]) parts.push(`${k}: ${s[k]}`) })
   return parts.join(' · ')
 }
 function Preferences({ preferences, t, onInspect }) {
