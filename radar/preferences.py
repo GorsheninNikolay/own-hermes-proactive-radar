@@ -17,6 +17,9 @@ SCOPE_FIELDS = ("account", "sender", "sender_name", "message_type", "project", "
 # trust one. A name scoped notify or prefer would let anyone raise their own mail by writing that name, so it needs the
 # address beside it; silent and digest can stand on the name alone.
 NAME_ONLY_EFFECTS = frozenset({"silent", "digest"})
+# What a model may write in a scope. ``subject_stem`` is left out: only the code writes it, from the subject of the
+# mail the owner muted, and a stem a model made up would be a rule that matches nothing.
+MODEL_SCOPE_FIELDS = tuple(field for field in SCOPE_FIELDS if field != "subject_stem")
 
 
 def sender_address(sender: Any) -> str:
@@ -144,16 +147,6 @@ def scope_matches(scope: dict[str, Any], observation: dict[str, Any]) -> bool:
     return True
 
 
-def _legacy_scope(scope: dict[str, Any]) -> dict[str, Any]:
-    """A scope written while ``sender`` also carried a display name («coderabbitai[bot]», saved on 2026-11-13) read as
-    the ``sender_name`` it was meant to be. Without this, narrowing ``sender`` back to the address would silently drop
-    the rules the owner already relies on."""
-    sender = str(scope.get("sender") or "").strip()
-    if not sender or "@" in sender or scope.get("sender_name"):
-        return scope
-    return {**{key: value for key, value in scope.items() if key != "sender"}, "sender_name": sender}
-
-
 def names_only_scope(scope: dict[str, Any], effect: Any) -> bool:
     """A scope that names the sender and gives no address. The name is chosen by whoever writes the mail, so it may
     only lower: silent and digest can stand on it, notify and prefer need the address beside it."""
@@ -165,7 +158,7 @@ def _usable(preference: dict[str, Any], observation: dict[str, Any], dimension: 
         return False
     if preference.get("effect") not in EFFECTS:
         return False
-    scope = _legacy_scope(dict(preference.get("scope") or {}))
+    scope = dict(preference.get("scope") or {})
     if preference.get("effect") == "silent" and not scope:
         return False  # a mute of everything is /radar pause, never a preference
     if names_only_scope(scope, preference.get("effect")):

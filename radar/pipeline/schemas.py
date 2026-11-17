@@ -1,9 +1,9 @@
 """Closed JSON schemas for every model step. Every property is required so strict providers accept them."""
 from __future__ import annotations
 
-# The scope fields a preference may carry, from the one list the store validates; the closed schemas below narrow it
-# further only in that every property is a string.
-from ..preferences import SCOPE_FIELDS
+# The scope fields a model may write, from the one list the store validates (without ``subject_stem``, which only
+# the code writes).
+from ..preferences import MODEL_SCOPE_FIELDS as SCOPE_FIELDS
 
 CATEGORIES = ["trip", "purchase", "work_item", "commitment", "check", "routine", "other", "noise"]
 TASK_KINDS = ["trip", "purchase", "work_item", "commitment", "check", "routine", "other"]

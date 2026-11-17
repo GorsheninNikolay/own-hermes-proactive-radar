@@ -92,12 +92,12 @@ def test_an_rfc_2047_name_is_decoded_on_both_sides():
     assert scope_matches({"sender_name": "notificación"}, _observation('"Avisos" <bot@example.org>')) is False
 
 
-def test_a_rule_saved_by_name_in_sender_still_silences_that_bot():
-    """Rows written while `sender` carried a name (2026-11-13) keep working: the store is not rewritten tonight."""
-    legacy = _preference({"kind": "email", "sender": "coderabbitai[bot]", "source_kind": "gmail"})
-    assert applicable([legacy], _observation(CODERABBIT)) != []
-    assert applicable([legacy], _observation(DEPENDABOT)) == []
-    assert applicable([legacy], _observation(f'"Adam Smith" <{GITHUB}>')) == []
+def test_a_sender_that_is_not_an_address_keeps_its_meaning_whatever_the_effect():
+    """`sender` never turns into a name: a source whose sender is a handle is compared as written, also to raise."""
+    handle = {"sender": "octocat", "kind": "work_item", "source_kind": "github"}
+    for effect in ("silent", "digest", "notify", "prefer"):
+        assert applicable([_preference({"sender": "octocat"}, effect=effect)], handle) != []
+    assert applicable([_preference({"sender": "coderabbitai[bot]"})], _observation(CODERABBIT)) == []  # a name goes in sender_name
 
 
 def test_a_name_rule_silences_only_that_bot_in_triage():
@@ -116,14 +116,16 @@ def test_a_name_rule_silences_only_that_bot_in_triage():
     assert triage_signal(human, [preference]).keep is True
 
 
-def test_the_three_scope_lists_are_one():
-    """The store, the closed pipeline schema and the radar_preference tool kept three divergent lists, and a field
-    missing from one of them came back as «invalid scope»."""
+def test_the_model_is_offered_the_stores_scope_fields_except_the_one_only_the_code_writes():
+    """The pipeline schema and the radar_preference tool take their fields from the store's list, so a field offered
+    is one the record can hold. `subject_stem` stays out of both: it comes from the subject of a muted mail, and a
+    stem a model made up would be a rule that matches nothing."""
     from radar.pipeline.schemas import PREFERENCE_SCHEMA, SCOPE_FIELDS as PIPELINE_FIELDS
+    from radar.preferences import MODEL_SCOPE_FIELDS
     from radar.schemas.tools import PREFERENCE as TOOL
 
-    properties = TOOL["parameters"]["properties"]["scope"]["properties"]
-    assert list(PIPELINE_FIELDS) == list(STORE_FIELDS)
-    assert "sender_name" in STORE_FIELDS
-    assert "sender_name" in properties
-    assert "sender_name" in PREFERENCE_SCHEMA["properties"]["scope"]["properties"]
+    offered = [field for field in STORE_FIELDS if field != "subject_stem"]
+    assert "subject_stem" in STORE_FIELDS and "sender_name" in offered
+    assert list(MODEL_SCOPE_FIELDS) == offered == list(PIPELINE_FIELDS)
+    assert list(TOOL["parameters"]["properties"]["scope"]["properties"]) == offered
+    assert list(PREFERENCE_SCHEMA["properties"]["scope"]["properties"]) == offered
