@@ -17,7 +17,7 @@ from ..i18n import language_name, t
 from ..llm import LlmError
 from ..models import canonical_hash
 from ..pipeline.schemas import PREFERENCE_SCHEMA, RISK_FLAGS
-from ..preferences import DIMENSIONS, EFFECTS, SCOPE_FIELDS, new_preference
+from ..preferences import DIMENSIONS, EFFECTS, SCOPE_FIELDS, names_only_scope, new_preference
 from ..prompts import PREFERENCE_PROMPT
 
 log = logging.getLogger("radar.learn")
@@ -82,6 +82,8 @@ def validate_learned(raw: Any, *, fallback_text: str) -> dict[str, Any] | None:
         dimension = "notification"
     scope_raw = raw.get("scope") if isinstance(raw.get("scope"), dict) else {}
     scope = {k: str(v).strip() for k, v in scope_raw.items() if k in SCOPE_FIELDS and isinstance(v, str) and v.strip()}
+    if names_only_scope(scope, effect):  # a display name alone may silence or digest, never raise
+        raise ValueError("sender_name without sender is only for silent or digest")
     exceptions = tuple(sorted({str(x) for x in (raw.get("exceptions") or []) if str(x) in RISK_FLAGS}))
     instruction = " ".join(str(raw.get("instruction") or "").split())[:MAX_INSTRUCTION] or " ".join(fallback_text.split())[:MAX_INSTRUCTION]
     return {"dimension": dimension, "effect": effect, "scope": scope, "exceptions": exceptions, "instruction": instruction}

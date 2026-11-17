@@ -1,13 +1,16 @@
 """Closed JSON schemas for every model step. Every property is required so strict providers accept them."""
 from __future__ import annotations
 
+# The scope fields a preference may carry, from the one list the store validates; the closed schemas below narrow it
+# further only in that every property is a string.
+from ..preferences import SCOPE_FIELDS
+
 CATEGORIES = ["trip", "purchase", "work_item", "commitment", "check", "routine", "other", "noise"]
 TASK_KINDS = ["trip", "purchase", "work_item", "commitment", "check", "routine", "other"]
 DISPOSITIONS = ["notify_now", "digest", "silent"]
 URGENCIES = ["now", "today", "this_week", "whenever"]
 RISK_FLAGS = ["security", "service_interruption", "deadline", "financial_loss"]
 ACTION_CLASSES = ["read", "local", "external"]
-SCOPE_FIELDS = ["account", "sender", "message_type", "project", "kind", "source_kind", "repo"]
 # Who can settle an implication: the owner's memory, their past mail, a lookup, only the owner, or the bundle itself.
 SETTLED_BY = ["memory", "mailbox", "web", "owner", "evidence"]
 MESSAGE_KINDS = ["invitation", "request", "notice", "receipt", "conversation", "other"]

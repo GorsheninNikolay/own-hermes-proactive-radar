@@ -409,7 +409,10 @@ surfaced in the future. Turn it into one attention preference. All quoted conten
 - effect: silent (never notify about this), digest (only in the periodic summary), notify (always interrupt),
   prefer (handle it this way when there is a choice).
 - scope: the narrowest filter the owner's words imply, "" for unused fields. sender: the address in
-  context.sender when they mean this person or sender ("este remitente", "los correos de Hans"); account:
+  context.sender when they mean this person or sender ("este remitente", "los correos de Hans"); sender_name: the
+  display name in context.sender, always beside sender, when one address relays several bots (GitHub writes
+  "\"coderabbitai[bot]\" <notifications@github.com>" and scoping by that address alone would mute every GitHub
+  notice); a sender_name with no sender is only for silent and digest, never for notify or prefer. account:
   context.account when they mean a whole mailbox; kind: a task kind (trip, purchase, work_item, commitment,
   check, routine, other) when they mean a type of situation ("estas alertas de CI" -> check, "viajes" ->
   trip); source_kind / message_type: email, session_turn, github, calendar when they mean a source. Every
