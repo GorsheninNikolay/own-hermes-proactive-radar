@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from .ru import STRINGS as RU_STRINGS
+
 STRINGS: dict[str, dict[str, str]] = {
+    "ru": RU_STRINGS,
     "es": {
         "verified": "Destino de Radar verificado.",
         "not_configured": "Radar no está configurado para Telegram.",
@@ -380,4 +383,4 @@ def t(language: Any, key: str, **kwargs: Any) -> str:
 
 
 def language_name(language: Any) -> str:
-    return {"es": "Spanish", "en": "English"}.get(language_of(language), "English")
+    return {"es": "Spanish", "en": "English", "ru": "Russian"}.get(language_of(language), "English")

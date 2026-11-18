@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from ..i18n import language_name
+from ..i18n import language_name, language_of
 from ..llm import LlmError
 from ..models import canonical_hash
 from ..pipeline.schemas import _arr, _obj, _STR, _NUM, _BOOL
@@ -27,18 +27,21 @@ log = logging.getLogger("radar.cards")
 
 LAYOUTS = ("boarding-pass", "receipt", "ticket", "calendar", "tag", "dial", "note")
 BUILTIN: dict[str, dict[str, Any]] = {
-    "trip": {"label": {"es": "Viaje", "en": "Trip"}, "icon": "✈️", "hue": 205, "layout": "boarding-pass"},
-    "purchase": {"label": {"es": "Compra", "en": "Purchase"}, "icon": "🧾", "hue": 32, "layout": "receipt"},
-    "work_item": {"label": {"es": "Trabajo", "en": "Work item"}, "icon": "🛠️", "hue": 268, "layout": "ticket"},
-    "commitment": {"label": {"es": "Compromiso", "en": "Commitment"}, "icon": "📌", "hue": 350, "layout": "calendar"},
-    "check": {"label": {"es": "Comprobar", "en": "Check"}, "icon": "⚠️", "hue": 48, "layout": "tag"},
-    "routine": {"label": {"es": "Rutina", "en": "Routine"}, "icon": "🔁", "hue": 160, "layout": "dial"},
-    "other": {"label": {"es": "Nota", "en": "Note"}, "icon": "📝", "hue": 0, "layout": "note"},
+    "trip": {"label": {"es": "Viaje", "en": "Trip", "ru": "Поездка"}, "icon": "✈️", "hue": 205, "layout": "boarding-pass"},
+    "purchase": {"label": {"es": "Compra", "en": "Purchase", "ru": "Покупка"}, "icon": "🧾", "hue": 32, "layout": "receipt"},
+    "work_item": {"label": {"es": "Trabajo", "en": "Work item", "ru": "Рабочая задача"}, "icon": "🛠️", "hue": 268, "layout": "ticket"},
+    "commitment": {"label": {"es": "Compromiso", "en": "Commitment", "ru": "Обязательство"}, "icon": "📌", "hue": 350, "layout": "calendar"},
+    "check": {"label": {"es": "Comprobar", "en": "Check", "ru": "Проверка"}, "icon": "⚠️", "hue": 48, "layout": "tag"},
+    "routine": {"label": {"es": "Rutina", "en": "Routine", "ru": "Регулярное"}, "icon": "🔁", "hue": 160, "layout": "dial"},
+    "other": {"label": {"es": "Nota", "en": "Note", "ru": "Заметка"}, "icon": "📝", "hue": 0, "layout": "note"},
 }
 MIN_CLUSTER = 3
 _STOP = {"de", "la", "el", "los", "las", "un", "una", "y", "o", "en", "con", "por", "para", "del", "al", "the", "a", "an", "of", "to", "for", "in", "on", "and"}
 _MONTHS = {"es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"], "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
 _WEEKDAYS = {"es": ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"], "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
+
+_MONTHS["ru"] = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+_WEEKDAYS["ru"] = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 
 CARD_KIND_SCHEMA = _obj({
     "kinds": _arr(_obj({
@@ -117,12 +120,13 @@ def _day_label(value: Any, language: str, tz: str) -> dict[str, Any]:
     except Exception:
         zone = timezone.utc
     local = moment.astimezone(zone)
-    months = _MONTHS.get(language[:2], _MONTHS["en"])
-    weekdays = _WEEKDAYS.get(language[:2], _WEEKDAYS["en"])
+    months = _MONTHS.get(language_of(language), _MONTHS["en"])
+    weekdays = _WEEKDAYS.get(language_of(language), _WEEKDAYS["en"])
     return {"day": local.day, "month": months[local.month - 1], "weekday": weekdays[local.weekday()], "time": local.strftime("%H:%M"), "iso": local.isoformat()}
 
 
 def cron_label(expression: str, language: str) -> str:
+    language = language_of(language)
     parts = str(expression or "").split()
     if len(parts) != 5:
         return expression
@@ -134,8 +138,12 @@ def cron_label(expression: str, language: str) -> str:
         time = ""
     if dow.isdigit() and time:
         day = weekdays[(int(dow) + 6) % 7]
+        if language == "ru":
+            return f"{day}, в {time}"
         return (f"cada {day} a las {time}" if language.startswith("es") else f"every {day} at {time}")
     if dow == "*" and time:
+        if language == "ru":
+            return f"каждый день в {time}"
         return (f"cada día a las {time}" if language.startswith("es") else f"every day at {time}")
     return expression
 
