@@ -52,6 +52,10 @@ _NEGATION = re.compile(
     r"\bno\b|\bnunca\b|\bjam[áa]s\b|\bpara nada\b|\btodav[íi]a no\b|\ba[úu]n no\b|\bespera\b|\besp[ée]rate\b|\bmejor no\b"
     r"|\bnot\b|\bnever\b|\bdon'?t\b|\bdo not\b|\bwait\b|\bhold on\b"
 )
+# Conservative Russian floor: refusal/negation also guards model and named-action paths.
+_REJECT = re.compile(_REJECT.pattern + r"|\b(?:нет|отмена|отмени|отклоняю|отклонить)\b|\bне\s+(?:надо|отправ\w*|пиши|писать|делай|нужно)\b")
+_NEGATION = re.compile(_NEGATION.pattern + r"|\b(?:нет|не|нельзя|никогда|отмена|отмени|подожди|погоди)\b")
+_CYRILLIC = re.compile(r"[а-яё]", re.I)
 _DONE = re.compile(r"ya est[áa]|ya lo (he )?hecho|hecho ya|already done|done already|i did it|ya lo compr|ya lo reserv|already (booked|bought|sent)")
 
 INTENTS = ("approve", "reject", "edit_request", "preference", "question", "thanks", "later", "done", "instruction", "unclear")
@@ -126,7 +130,7 @@ def _classify(text: str) -> dict[str, Any]:
         return {"intent": "thanks", "proposal_index": index}
     if _QUESTION.search(lowered):
         return {"intent": "question", "proposal_index": index}
-    if _affirms(lowered) or (number and len(lowered) <= 3):
+    if _affirms(lowered) and not has_negation(lowered):
         return {"intent": "approve", "proposal_index": index}
     return {"intent": "unclear", "proposal_index": index}
 
@@ -232,7 +236,8 @@ def merge(floor: dict[str, Any], verdict: dict[str, Any], text: str, decisions: 
     out["source"] = "model"
     if floor.get("rule"):
         out["rule"] = True  # a line drawn through a kind of thing is a rule whatever the model made of the answer
-    if out["intent"] == "approve" and ((floor.get("intent") == "reject" and has_negation(lowered)) or _negated_approval(lowered)):
+    if out["intent"] == "approve" and (has_negation(lowered) or _negated_approval(lowered)
+                                       or (_CYRILLIC.search(lowered) and floor.get("intent") != "approve")):
         out["intent"], out["option"] = "unclear", ""  # a real no in the words beats a model yes; a verb that names the action does not
     if floor.get("intent") == "approve" and floor.get("option") and out["intent"] in ("reject", "unclear") and not has_negation(lowered):
         out["intent"], out["option"] = "approve", str(floor["option"])  # the owner said the offered action in their own words

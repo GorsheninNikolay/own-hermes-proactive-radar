@@ -1,5 +1,6 @@
 """Russian user-facing catalog. Keys and format fields follow the English catalog."""
 STRINGS = {
+    "report_jobs": "Задания", "report_facts": "Факты",
     "verified": "Назначение Radar проверено.",
     "not_configured": "Radar не настроен для Telegram.",
     "actor_unauthorized": "Пользователь не авторизован.",

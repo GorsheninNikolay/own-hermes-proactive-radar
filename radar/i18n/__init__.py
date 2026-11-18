@@ -8,6 +8,7 @@ from .ru import STRINGS as RU_STRINGS
 STRINGS: dict[str, dict[str, str]] = {
     "ru": RU_STRINGS,
     "es": {
+        "report_jobs": "Trabajos", "report_facts": "Hechos",
         "verified": "Destino de Radar verificado.",
         "not_configured": "Radar no está configurado para Telegram.",
         "actor_unauthorized": "Actor no autorizado.",
@@ -187,6 +188,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "warmup_status": "Hábitos leídos el {at} ({months} meses): {correspondents} contactos, {recurring} envíos periódicos, {events} eventos con tu respuesta ({types} tipos).",
     },
     "en": {
+        "report_jobs": "Jobs", "report_facts": "Facts",
         "verified": "Radar destination verified.",
         "not_configured": "Radar is not configured for Telegram.",
         "actor_unauthorized": "Unauthorized actor.",
@@ -369,7 +371,7 @@ STRINGS: dict[str, dict[str, str]] = {
 
 
 def language_of(value: Any) -> str:
-    code = str(value or "es").lower().split("-")[0]
+    code = str(value or "es").strip().lower().replace("_", "-").split("-")[0]
     return code if code in STRINGS else "en"
 
 

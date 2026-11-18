@@ -42,7 +42,7 @@ def stems(title: Any) -> frozenset[str]:
 
 def key_tokens(key: Any) -> frozenset[str]:
     """The words of a fact key: ``postura_preseed_sandora`` → {postura, preseed, sandora}."""
-    return frozenset(part for part in re.split(r"[^a-z0-9]+", str(key or "").lower()) if len(part) >= 3)
+    return frozenset(part for part in re.split(r"[\W_]+", str(key or "").casefold()) if len(part) >= 3)
 
 
 def family(item: dict[str, Any]) -> Family:

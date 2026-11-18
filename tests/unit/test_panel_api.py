@@ -22,6 +22,23 @@ def _client(monkeypatch, store, cfg, tmp_path):
     return TestClient(app), module
 
 
+@pytest.mark.parametrize('locale', ['ru', 'ru-RU', ' RU_ru '])
+def test_russian_board_report_keeps_payload_and_draft(store, tmp_path, monkeypatch, locale):
+    cfg = active_config()
+    cfg['owner']['language'] = locale
+    now = '2026-10-19T10:00:00Z'
+    draft = '<approved draft> Не переводить'
+    store.create_task(task_id='ru1', kind='trip', title='<Поездка>', summary='', entities={'draft': {'text': draft}}, expectations=[], checklist=[], now=now)
+    client, _ = _client(monkeypatch, store, cfg, tmp_path)
+    board = client.get('/api/plugins/hermes-proactive-radar/board').json()
+    assert board['language'] == 'ru'
+    assert board['tasks'][0]['id'] == 'ru1' and board['tasks'][0]['kind'] == 'trip'
+    assert board['tasks'][0]['draft'] == draft
+    report = client.get('/api/plugins/hermes-proactive-radar/tasks/ru1/report').json()['html']
+    assert 'Поездка' in report and '&lt;Поездка&gt;' in report
+    assert store.get_task('ru1')['entities']['draft']['text'] == draft
+
+
 def test_board_detail_respond_and_preferences_through_the_panel_api(store, tmp_path, monkeypatch):
     cfg = active_config()
     verify_destination(store)

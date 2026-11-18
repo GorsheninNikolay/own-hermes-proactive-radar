@@ -4,7 +4,12 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from ..i18n import t
+from ..i18n import t, language_of
+
+_RU_LABELS = {"trip": "Поездка", "purchase": "Покупка", "work_item": "Рабочая задача", "commitment": "Обязательство", "check": "Проверка", "routine": "Рутина", "other": "Прочее", "open": "Открыто", "needs_user": "Требует решения", "in_progress": "В работе", "waiting": "Ожидание", "snoozed": "Отложено", "done": "Готово", "pending": "Ожидает решения", "sent": "Отправлено", "accepted": "Принято", "executing": "Выполняется", "running": "Выполняется", "failed": "Ошибка", "completed": "Завершено", "declined": "Отклонено", "expired": "Истекло", "cancelled": "Отменено", "research": "Исследование"}
+
+def _label(value: Any, language: str) -> Any:
+    return _RU_LABELS.get(str(value), value) if language_of(language) == "ru" else value
 
 _CSS = """
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1d2330;--muted:#5d6675;--accent:#2f6feb;--ok:#1f9d55;--warn:#d97706;--bad:#dc2626;--line:#e5e8ee}
@@ -33,7 +38,7 @@ def render_task_report(
         f"<title>{_e(task.get('title'))}</title><style>{_CSS}</style></head><body><main>",
         "<div class='card'>",
         f"<h1>{_e(task.get('title'))}</h1>",
-        f"<div class='meta'>{_e(t(language, 'task_label'))} · {_e(task.get('kind'))} · <span class='status'>{_e(task.get('status'))}</span>"
+        f"<div class='meta'>{_e(t(language, 'task_label'))} · {_e(_label(task.get('kind'), language))} · <span class='status'>{_e(_label(task.get('status'), language))}</span>"
         + (f" · {_e(t(language, 'due'))}: {_e(str(task.get('due_at'))[:16])}" if task.get("due_at") else "") + "</div>",
         f"<p>{_e(task.get('summary'))}</p>",
         "</div>",
@@ -48,13 +53,13 @@ def render_task_report(
     if proposals:
         parts.append(f"<div class='card'><h2>{_e(t(language, 'proposals'))}</h2><ul>")
         for proposal in proposals:
-            parts.append(f"<li><b>{_e(proposal.get('title'))}</b> <span class='status'>{_e(proposal.get('status'))}</span>"
+            parts.append(f"<li><b>{_e(proposal.get('title'))}</b> <span class='status'>{_e(_label(proposal.get('status'), language))}</span>"
                          + (f"<br><small>{_e(proposal.get('reason_text'))}</small>" if proposal.get("reason_text") else "") + "</li>")
         parts.append("</ul></div>")
     if jobs:
-        parts.append("<div class='card'><h2>Jobs</h2><ul>")
+        parts.append(f"<div class='card'><h2>{_e(t(language, 'report_jobs'))}</h2><ul>")
         for job in jobs:
-            parts.append(f"<li><span class='status'>{_e(job.get('status'))}</span> {_e(job.get('kind'))}"
+            parts.append(f"<li><span class='status'>{_e(_label(job.get('status'), language))}</span> {_e(_label(job.get('kind'), language))}"
                          + (f"<pre>{_e(job.get('result_summary'))}</pre>" if job.get("result_summary") else "") + "</li>")
         parts.append("</ul></div>")
     if signals:
@@ -66,7 +71,7 @@ def render_task_report(
                          + (f"<p>{_e(signal.get('snippet'))}</p>" if signal.get("snippet") else "") + "</div>")
         parts.append("</div>")
     if facts:
-        parts.append("<div class='card'><h2>Facts</h2><ul>")
+        parts.append(f"<div class='card'><h2>{_e(t(language, 'report_facts'))}</h2><ul>")
         for fact in facts[:20]:
             parts.append(f"<li>{_e(fact.get('key'))}: {_e(fact.get('value'))}</li>")
         parts.append("</ul></div>")

@@ -24,6 +24,7 @@ if str(PLUGIN_ROOT) not in sys.path:
 
 from radar.config import _merge, _normalize  # noqa: E402
 from radar.delivery.context import thread_context  # noqa: E402
+from radar.i18n import language_of
 from radar.identity import PLUGIN_ID  # noqa: E402
 from radar.delivery.learn import describe_preference, forget_preference, preference_from_fields, store_preference  # noqa: E402
 from radar.delivery.notice import DRAFT_INLINE  # noqa: E402
@@ -158,7 +159,7 @@ def board() -> dict[str, Any]:
     muted_tasks = [{"id": t["id"], "kind": t.get("kind"), "title": t.get("title"), "status": t.get("status"), "updated_at": t.get("updated_at")} for t in rows if t.get("muted")]
     order = {"needs_user": 0, "in_progress": 1, "open": 2, "waiting": 3, "snoozed": 4}
     tasks.sort(key=lambda t: (order.get(str(t["status"]), 9), -len(t.get("proposals") or []), str(t.get("due_at") or "9")))
-    language = str((config.get("owner") or {}).get("language") or "es")
+    language = language_of((config.get("owner") or {}).get("language"))
     patterns = [{**{k: p.get(k) for k in ("id", "kind", "name", "description", "status", "support", "confidence", "task_id", "automation_ref", "last_seen_at")},
                  "summary": describe_pattern(p, language), "evidence": p.get("evidence") or {}} for p in store.list_patterns(limit=50)]
     all_prefs = store.list_preferences()
@@ -348,7 +349,7 @@ class PreferenceBody(BaseModel):
 @router.get("/preferences")
 def preferences() -> dict[str, Any]:
     store, config = _open()
-    language = str((config.get("owner") or {}).get("language") or "es")
+    language = language_of((config.get("owner") or {}).get("language"))
     return {"preferences": [{**{k: p.get(k) for k in ("id", "effect", "scope", "instruction", "version", "status")}, "summary": describe_preference(p, language)}
                             for p in store.list_preferences(active_only=True)]}
 

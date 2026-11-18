@@ -22,10 +22,10 @@ DATED_KINDS = ("purchase",)  # what binds a day at home: a delivery (a commitmen
 MAX_TRIP_DAYS = 14
 # Labels of the dates that are days of a trip, and of the dates that bind the owner at home. Spanish and English, the
 # languages the extractor writes in for this owner; a label that says nothing recognisable is not a day away.
-_TRAVEL = re.compile(r"check-?in|check-?out|entrada|salida|\bida\b|vuelta|vuelo|flight|depart|arriv|return|llegada|regreso|estancia|\bstay\b|noche|night|tren|train", re.I)
-_DELIVERY = re.compile(r"entrega|deliver|reparto|recogida|pick-?up|\bcita\b|appointment|instalaci|install", re.I)
+_TRAVEL = re.compile(r"check-?in|check-?out|entrada|salida|\bida\b|vuelta|vuelo|flight|depart|arriv|return|llegada|regreso|estancia|\bstay\b|noche|night|tren|train|заезд|выезд|вылет|прил[её]т|рейс|возврат|возвращ|проживан|поезд|отъезд|прибыт", re.I)
+_DELIVERY = re.compile(r"entrega|deliver|reparto|recogida|pick-?up|\bcita\b|appointment|instalaci|install|достав|курьер|самовывоз|получени|установк", re.I)
 # A dated entity that is a deadline, not a day of the trip: the free-cancellation limit, a payment date.
-_DEADLINE = re.compile(r"cancel|anul|l[ií]mite|plazo|deadline|refund|reembols|pago|payment|vencimiento|due date", re.I)
+_DEADLINE = re.compile(r"cancel|anul|l[ií]mite|plazo|deadline|refund|reembols|pago|payment|vencimiento|due date|отмен|аннул|срок|дедлайн|возмещ|возврат средств|оплат|плат[её]ж", re.I)
 
 
 def _days(dates: Any, pattern: re.Pattern[str]) -> list[str]:
