@@ -18,6 +18,32 @@ const BOARD_KEY = ['radar', 'board']
 let rest = null
 
 const TEXT = {
+  ru: {
+    title: 'Радар', tasks: 'в работе', working: 'выполняются', youHave: 'ждут решения', refresh: 'Обновить',
+    board: 'Доска', rules: 'Правила', empty: 'На радаре пока ничего нет.', emptyHint: 'Здесь появится то, что требует внимания.',
+    error: 'Не удалось загрузить панель: ', proposals: 'Предложения', proposal: 'предложение', checklist: 'Осталось',
+    draft: 'Предлагаемый ответ', context: 'Почта', later: 'Напомнить завтра', mute: 'Больше не уведомлять', done: 'Уже решено',
+    report: 'Открыть отчёт', hideReport: 'Скрыть отчёт', waiting: 'ожидание', executing: 'выполняется',
+    nothingPending: 'Сейчас нечего решать.', due: 'Срок', jobRunning: 'в работе', priorityHigh: 'высокий приоритет',
+    forget: 'Удалить', dismiss: 'Отклонить', confirm: 'Подтвердить', save: 'Сохранить', instruction: 'Что нужно изменить…', sender: 'отправитель (необязательно)',
+    effects: { silent: 'не уведомлять', digest: 'только сводка', notify: 'всегда уведомлять', prefer: 'предпочитать' },
+    status: { needs_user: 'Требует решения', in_progress: 'В работе', open: 'Открытые', waiting: 'Ожидание', snoozed: 'Отложенные' },
+    mutedGroup: 'Без уведомлений', unmute: 'Включить уведомления', muted: 'Уведомления отключены.', unmuted: 'Уведомления включены.',
+    patterns: 'Закономерности', preferences: 'Правила внимания', suggestions: 'Предлагаемое правило', kinds: 'Типы карточек',
+    selected: 'выбрано', doneN: 'решено', muteN: 'без уведомлений', laterN: 'отложено', clearSel: 'Снять выделение',
+    send: 'Отправить', sent: 'Записано, продолжу', composePlaceholder: 'Напишите, чтобы продолжить задачу…', composeHint: 'Передать ассистенту для продолжения · ⌘+Enter',
+    stackMore: n => `Похожие: ${n} · показать все`, stackCollapse: n => `Свернуть: ${n}`,
+    noPatterns: 'Закономерностей пока нет.', noPrefs: 'Сохранённых правил нет.', daysLeft: n => n === 0 ? 'сегодня' : n === 1 ? 'завтра' : n < 0 ? `Дней назад: ${-n}` : `Осталось дней: ${n}`,
+    depart: 'Отправление', back: 'Возвращение', total: 'Итого', order: 'Заказ', vendor: 'Продавец', delivery: 'Доставка', branch: 'ветка', pr: 'черновик PR',
+    draftReady: 'черновик готов', every: 'Расписание', question: 'Проверка', kindsHint: 'Новые типы появляются из повторяющихся задач.',
+    effect: 'Действие', scope: 'Область', origin: 'Источник', details: 'Подробности', close: 'Закрыть', stateLabel: 'Статус',
+    originMap: { explicit: 'создано вами', inferred: 'выучено', imported: 'импортировано' },
+    actionClasses: { read: 'Чтение', local: 'Локальное действие', external: 'Внешнее действие' },
+    severity: { high: 'Высокая', normal: 'Обычная', low: 'Низкая', critical: 'Критическая' },
+    states: { active: 'Активно', candidate: 'Кандидат', proposed: 'Предложено', dismissed: 'Отклонено', forgotten: 'Удалено', confirmed: 'Подтверждено' },
+    scopeKeys: { sender: 'Отправитель', sender_name: 'Имя', repo: 'Репозиторий', project: 'Проект', account: 'Аккаунт', kind: 'Тип', source_kind: 'Тип источника', subject_stem: 'Тема' },
+    messages: n => `сообщений: ${n}`,
+  },
   es: {
     title: 'Radar', tasks: 'en seguimiento', working: 'trabajando', youHave: 'te tocan', refresh: 'Actualizar',
     board: 'Tablero', rules: 'Reglas', empty: 'Nada en el radar.', emptyHint: 'Cuando llegue algo que merezca tu atención, aparecerá aquí.',
@@ -268,7 +294,8 @@ function kindOf(board, task) {
   const kinds = (board && board.card_kinds) || {}
   return kinds[task.card_kind] || kinds[task.kind] || kinds.other || { label: {}, icon: '•', hue: 0, layout: 'note' }
 }
-function label(kind, language) { return (kind.label && (kind.label[language] || kind.label.es || kind.label.en)) || '' }
+function normalizeLanguage(value) { const code = String(value || 'es').trim().toLowerCase().replace(/_/g, '-').split('-')[0]; return TEXT[code] ? code : 'en' }
+function label(kind, language) { return (kind.label && (kind.label[normalizeLanguage(language)] || kind.label.en || kind.label.es)) || '' }
 function layoutOf(task, kind) { return (task.artifact && task.artifact.layout) || kind.layout || 'note' }
 function tintOf(task, kind) { return TINT[layoutOf(task, kind)] || 'var(--rd-dim)' }
 
@@ -361,7 +388,7 @@ function Tag({ task, kind, t, language, score }) {
   const sev = a.severity || a.level || ''
   return jsxs(Fragment, { children: [
     jsx('div', { className: 'rd-haz' }),
-    jsxs('div', { className: 'rd-band', children: [jsx('span', { children: kind.icon }), jsx('span', { className: 'rd-sev', children: sev ? String(sev) : t.question }), jsx(Sig, { n: bars(score) })] }),
+    jsxs('div', { className: 'rd-band', children: [jsx('span', { children: kind.icon }), jsx('span', { className: 'rd-sev', children: sev ? ((t.severity && t.severity[sev]) || String(sev)) : t.question }), jsx(Sig, { n: bars(score) })] }),
     jsxs('div', { className: 'rd-pad', children: [
       jsx('div', { className: 'rd-ttl', children: task.title }),
       a.question || task.summary ? jsx('div', { className: 'rd-sum', children: a.question || task.summary }) : null,
@@ -448,7 +475,7 @@ function StackCard({ unit, data, t, language, onExpand }) {
 /* ---- drawer & its parts (kept: full detail + proposal actions) ---- */
 function Context({ context, t }) {
   if (!context || !(context.sender || context.excerpt)) return null
-  const head = [context.sender, context.when, context.count > 1 ? `${context.count} msgs` : null].filter(Boolean).join(' · ')
+  const head = [context.sender, context.when, context.count > 1 ? (t.messages ? t.messages(context.count) : `${context.count} msgs`) : null].filter(Boolean).join(' · ')
   return jsxs('div', { className: 'rounded-md border border-(--rd-line) p-2 text-xs', children: [
     jsxs('div', { className: 'mb-1', style: { color: 'var(--rd-sub)' }, children: [jsx('b', { children: `${t.context}: ` }), head] }),
     context.subject ? jsx('div', { style: { fontStyle: 'italic', color: 'var(--rd-dim)' }, children: context.subject }) : null,
@@ -473,7 +500,7 @@ function Proposal({ proposal, t, onFeedback }) {
   return jsxs('div', { className: 'mb-2 rounded-md border border-(--rd-line) p-2 text-sm', children: [
     jsxs('div', { className: 'flex items-start justify-between gap-2', children: [
       jsxs('div', { children: [jsx('div', { className: 'font-medium', children: isNews ? (proposal.message || proposal.title) : proposal.title }), proposal.reason ? jsx('div', { className: 'text-xs', style: { color: 'var(--rd-sub)' }, children: proposal.reason }) : null] }),
-      jsxs('div', { className: 'flex shrink-0 flex-col items-end gap-0.5 text-[10px]', style: { color: 'var(--rd-dim)' }, children: [isNews ? null : jsx(Badge, { variant: 'secondary', className: 'text-[10px]', children: proposal.action_class }), inFlight ? jsx('span', { children: proposal.status === 'waiting' ? `${t.waiting}${proposal.wait_reason ? ': ' + proposal.wait_reason : ''}` : t.executing }) : null] }),
+      jsxs('div', { className: 'flex shrink-0 flex-col items-end gap-0.5 text-[10px]', style: { color: 'var(--rd-dim)' }, children: [isNews ? null : jsx(Badge, { variant: 'secondary', className: 'text-[10px]', children: (t.actionClasses && t.actionClasses[proposal.action_class]) || proposal.action_class }), inFlight ? jsx('span', { children: proposal.status === 'waiting' ? `${t.waiting}${proposal.wait_reason ? ': ' + proposal.wait_reason : ''}` : t.executing }) : null] }),
     ] }),
     proposal.draft ? jsxs('div', { className: 'mt-1 rounded p-2 text-xs whitespace-pre-wrap', style: { background: 'var(--rd-panel)' }, children: [jsx('b', { children: `${t.draft}: ` }), proposal.draft, proposal.draft_truncated ? '…' : ''] }) : null,
     detail ? jsx('div', { className: 'mt-1 rounded border border-(--rd-line) p-2 text-xs whitespace-pre-wrap', children: detail }) : null,
@@ -524,7 +551,7 @@ function Focus({ task, kind, t, language, onClose, onFeedback, onDismiss }) {
         jsxs('div', { className: 'rd-focus-body', children: [
           task.summary ? jsx('p', { style: { margin: 0, color: 'var(--rd-sub)', fontSize: '.9rem', lineHeight: 1.5 }, children: task.summary }) : null,
           jsx(Context, { context: task.context, t }),
-          missing.length ? jsxs('div', { style: { fontSize: '.8rem' }, children: [jsx('b', { children: `${t.checklist}: ` }), missing.map((c) => c.item).join('; ')] }) : null,
+          missing.length ? jsxs('div', { style: { fontSize: '.8rem' }, children: [jsx('b', { children: `${t.checklist}: ` }), missing.map((c) => c.label || c.item).join('; ')] }) : null,
           task.entities && task.entities.pr ? jsx('a', { style: { fontSize: '.8rem', textDecoration: 'underline' }, href: task.entities.pr, target: '_blank', rel: 'noreferrer', children: task.entities.pr }) : null,
           jsxs('div', { children: [jsx('div', { className: 'rd-focus-eyebrow', style: { marginBottom: '7px' }, children: t.proposals }), proposals.length ? proposals.map((p) => jsx(Proposal, { proposal: p, t, onFeedback }, p.id)) : jsx('div', { style: { fontSize: '.8rem', color: 'var(--rd-dim)' }, children: t.nothingPending })] }),
           task.draft && !proposals.some((p) => p.draft) ? jsxs('div', { style: { background: 'var(--rd-panel)', borderRadius: '8px', padding: '8px', fontSize: '.8rem', whiteSpace: 'pre-wrap' }, children: [jsx('b', { children: `${t.draft}: ` }), task.draft] }) : null,
@@ -544,7 +571,7 @@ function Focus({ task, kind, t, language, onClose, onFeedback, onDismiss }) {
 }
 
 /* ---- info modal: a rule or a pattern opened for its full detail ---- */
-function InfoModal({ info, onClose }) {
+function InfoModal({ info, onClose, t }) {
   if (!info) return null
   return jsx('div', { className: 'rd-scrim', onMouseDown: onClose, children:
     jsxs('div', { className: 'rd-info', onMouseDown: (e) => e.stopPropagation(), children: [
@@ -553,7 +580,7 @@ function InfoModal({ info, onClose }) {
           jsxs('div', { className: 'rd-info-eyebrow', children: [info.dot ? jsx('span', { style: { width: '8px', height: '8px', borderRadius: '3px', background: info.dot, display: 'inline-block' } }) : null, info.eyebrow] }),
           jsx('div', { className: 'rd-info-title', children: info.title }),
         ] }),
-        jsx('button', { className: 'rd-ghost', 'aria-label': 'Cerrar', onClick: onClose, children: '✕' }),
+        jsx('button', { className: 'rd-ghost', 'aria-label': t.close, onClick: onClose, children: '✕' }),
       ] }),
       jsx('div', { className: 'rd-info-body', children: (info.rows || []).filter((r) => r && r.v).map((r, i) => jsxs('div', { className: 'rd-info-row', children: [jsx('span', { className: 'k', children: r.k }), jsx('span', { className: 'v', children: r.v })] }, i)) }),
       info.actions && info.actions.length ? jsx('div', { className: 'rd-info-foot', children: info.actions.map((a, i) => jsx(Button, { size: 'sm', variant: a.variant || 'outline', onClick: a.onClick, children: a.label }, i)) }) : null,
@@ -571,9 +598,9 @@ function ruleLabel(p) {
   return (s.sender && s.sender_name ? `${s.sender} (${s.sender_name})` : s.sender || s.sender_name)
     || s.repo || s.project || s.subject_stem || p.instruction || p.summary || '—'
 }
-function scopeText(s) {
+function scopeText(s, t) {
   const parts = []
-  ;['sender', 'sender_name', 'repo', 'project', 'account', 'kind', 'source_kind', 'subject_stem'].forEach((k) => { if (s && s[k]) parts.push(`${k}: ${s[k]}`) })
+  ;['sender', 'sender_name', 'repo', 'project', 'account', 'kind', 'source_kind', 'subject_stem'].forEach((k) => { if (s && s[k]) parts.push(`${(t.scopeKeys && t.scopeKeys[k]) || k}: ${s[k]}`) })
   return parts.join(' · ')
 }
 function Preferences({ preferences, t, onInspect }) {
@@ -589,10 +616,10 @@ function Preferences({ preferences, t, onInspect }) {
     eyebrow: t.preferences, title: ruleLabel(p), dot: effectColor(p.effect),
     rows: [
       { k: t.effect, v: effName(p.effect) },
-      { k: t.scope, v: scopeText(p.scope) },
+      { k: t.scope, v: scopeText(p.scope, t) },
       { k: t.details, v: p.instruction || p.summary || '' },
       { k: t.origin, v: (t.originMap && t.originMap[p.origin]) || p.origin || '' },
-      { k: t.stateLabel, v: p.status || '' },
+      { k: t.stateLabel, v: (t.states && t.states[p.status]) || p.status || '' },
     ],
     actions: [{ label: t.forget, variant: 'outline', onClick: () => { post(`/preferences/${p.id}/forget`, {}).catch(() => {}); onInspect(null) } }],
   })
@@ -629,7 +656,7 @@ function Patterns({ patterns, t, onFeedback, onInspect }) {
     eyebrow: t.patterns, title: p.name || p.summary || '—', dot: 'var(--rd-sky)',
     rows: [
       { k: t.details, v: p.description || p.summary || '' },
-      { k: t.stateLabel, v: p.status || '' },
+      { k: t.stateLabel, v: (t.states && t.states[p.status]) || p.status || '' },
     ],
     actions: (p.status === 'proposed' || p.status === 'candidate')
       ? [{ label: t.dismiss, variant: 'outline', onClick: () => { post(`/patterns/${p.id}/dismiss`, {}).then(onFeedback).catch(() => {}); onInspect(null) } }]
@@ -667,7 +694,7 @@ function RadarPage() {
   const toggleExpand = (k) => setExpanded((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n })
   const bentoRef = useRef(null)
   const drag = useRef(null)
-  const language = data && data.language && TEXT[data.language] ? data.language : 'es'
+  const language = normalizeLanguage(data && data.language)
   const t = TEXT[language]
   const tasks = (data && data.tasks) || []
   const taskIds = tasks.map((x) => x.id).join(',')
@@ -765,7 +792,7 @@ function RadarPage() {
       jsx('button', { className: 'x', title: t.clearSel, onClick: () => setSel(new Set()), children: '✕' }),
     ] }) : null,
     selected ? jsx(Focus, { task: selected, kind: kindOf(data, selected), t, language, onClose: () => setSelectedId(null), onFeedback, onDismiss: dismiss }, selected.id) : null,
-    info ? jsx(InfoModal, { info, onClose: () => setInfo(null) }) : null,
+    info ? jsx(InfoModal, { info, t, onClose: () => setInfo(null) }) : null,
   ] })
 }
 

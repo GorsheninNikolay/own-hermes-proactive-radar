@@ -63,6 +63,7 @@ def _facts(task: dict[str, Any]) -> dict[str, Any]:
 
 
 _WEEKDAYS = {  # cron order: 0 = Sunday
+    "ru": ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"],
     "es": ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"],
     "en": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
 }

@@ -47,7 +47,9 @@ def iso(value: datetime) -> str:
 
 
 def _lang(config: dict[str, Any]) -> str:
-    return "English" if str((config.get("owner") or {}).get("language") or "es") == "en" else "español"
+    from ..i18n import language_name
+
+    return language_name((config.get("owner") or {}).get("language"))
 
 
 def _hours_since(then_iso: str, now_dt: datetime) -> float:

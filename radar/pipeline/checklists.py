@@ -43,6 +43,30 @@ CHECKLISTS: dict[str, list[str]] = {
 
 # Template items are stable identifiers (the model reports status against them); these are their labels.
 LABELS: dict[str, dict[str, str]] = {
+    "ru": {
+        "outbound transport booked": "транспорт туда забронирован",
+        "lodging booked for every night of the stay": "жильё забронировано на все ночи",
+        "return transport booked": "обратный транспорт забронирован",
+        "local transport or transfers arranged": "местный транспорт или трансфер организован",
+        "online check-in (airlines open it about 24h before departure)": "онлайн-регистрация (обычно открывается за 24 ч до вылета)",
+        "travel documents valid for the destination": "документы действительны для поездки",
+        "calendar blocked for the dates": "даты заняты в календаре",
+        "order confirmed": "заказ подтверждён",
+        "payment charged for the expected amount": "списана ожидаемая сумма",
+        "shipping notification received": "получено уведомление об отправке",
+        "delivered": "доставлено",
+        "item matches what was wanted (size, model, compatibility)": "товар соответствует ожиданиям (размер, модель, совместимость)",
+        "return or warranty window noted": "срок возврата или гарантии записан",
+        "issue reproduced": "ошибка воспроизведена",
+        "root cause identified": "причина установлена",
+        "fix branch or pull request prepared": "ветка или pull request с исправлением подготовлены",
+        "reporter answered": "автору сообщения дан ответ",
+        "deployed or verified in production": "развёрнуто или проверено в рабочей среде",
+        "deadline known": "срок известен",
+        "work scheduled": "работа запланирована",
+        "delivered or answered": "выполнено или дан ответ",
+        "inconsistency confirmed with the owner": "несоответствие проверено с владельцем",
+    },
     "es": {
         "outbound transport booked": "transporte de ida reservado",
         "lodging booked for every night of the stay": "alojamiento reservado para todas las noches",
@@ -87,10 +111,10 @@ _SYNONYMS = {"facturacion": "check-in", "facturar": "check-in", "embarque": "che
 
 def _words(text: str) -> set[str]:
     """Accent-free, parenthesis-free significant word stems, so a translated or reworded label still matches its item."""
-    plain = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode()
-    plain = re.sub(r"\([^)]*\)", " ", plain.lower())
+    plain = "".join(c for c in unicodedata.normalize("NFKD", str(text or "")).casefold() if not unicodedata.combining(c))
+    plain = re.sub(r"\([^)]*\)", " ", plain)
     out: set[str] = set()
-    for word in re.findall(r"[a-z0-9-]+", plain):
+    for word in re.findall(r"[^\W_]+(?:-[^\W_]+)*", plain):
         word = _SYNONYMS.get(word, word)
         if word in _STOPWORDS or len(word) < 3:
             continue

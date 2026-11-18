@@ -20,6 +20,7 @@ _QUOTE_MARKERS = re.compile(
 )
 _SUBJECT_PREFIX = re.compile(r"^\s*(?:(?:re|fwd?|rv|aw|wg|tr)\s*:\s*)+", re.I)
 _MONTHS = {
+    "ru": ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"],
     "es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
     "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
 }

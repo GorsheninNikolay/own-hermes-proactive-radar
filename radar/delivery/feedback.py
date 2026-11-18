@@ -13,7 +13,7 @@ import logging
 import re
 from typing import Any
 
-from ..i18n import language_name
+from ..i18n import language_name, language_of
 from ..pipeline.schemas import INTENT_SCHEMA
 from ..prompts import INTENT_SYSTEM
 
@@ -52,6 +52,13 @@ _NEGATION = re.compile(
     r"\bno\b|\bnunca\b|\bjam[áa]s\b|\bpara nada\b|\btodav[íi]a no\b|\ba[úu]n no\b|\bespera\b|\besp[ée]rate\b|\bmejor no\b"
     r"|\bnot\b|\bnever\b|\bdon'?t\b|\bdo not\b|\bwait\b|\bhold on\b"
 )
+# Conservative Russian floor: refusal/negation also guards model and named-action paths.
+_RU_REJECT = re.compile(
+    r"(?:нет|отмена|отмени(?:ть)?|отклони(?:ть)?|отклоняю|не\s+(?:надо|отправляй|отправлять|пиши|писать|делай|нужно))"
+    r"(?:\s+(?:это|письмо|предложение|отправку|в|gmail|send|it))*[.!]*", re.I
+)
+_NEGATION = re.compile(_NEGATION.pattern + r"|\b(?:нет|не|нельзя|никогда|отмен\w*|отклон\w*|подожди|погоди)\b")
+_CYRILLIC = re.compile(r"[а-яё]", re.I)
 _DONE = re.compile(r"ya est[áa]|ya lo (he )?hecho|hecho ya|already done|done already|i did it|ya lo compr|ya lo reserv|already (booked|bought|sent)")
 
 INTENTS = ("approve", "reject", "edit_request", "preference", "question", "thanks", "later", "done", "instruction", "unclear")
@@ -101,6 +108,8 @@ def _classify(text: str) -> dict[str, Any]:
         lowered = lowered[number.end():].strip(" .,;:)-")  # the order is what follows the number
         if not lowered:
             return {"intent": "approve", "proposal_index": index}
+    if _CYRILLIC.search(lowered):
+        return {"intent": "reject" if _RU_REJECT.fullmatch(lowered) else "unclear", "proposal_index": index}
     if _DONE.search(lowered):
         return {"intent": "done", "proposal_index": index}
     if _PREF.search(lowered):
@@ -126,7 +135,7 @@ def _classify(text: str) -> dict[str, Any]:
         return {"intent": "thanks", "proposal_index": index}
     if _QUESTION.search(lowered):
         return {"intent": "question", "proposal_index": index}
-    if _affirms(lowered) or (number and len(lowered) <= 3):
+    if _affirms(lowered) and not has_negation(lowered):
         return {"intent": "approve", "proposal_index": index}
     return {"intent": "unclear", "proposal_index": index}
 
@@ -200,6 +209,14 @@ async def understand(gate: Any, text: str, *, outbox_row: dict[str, Any], store:
     passing the order on; and the floor only speaks Spanish and English."""
     floor = classify(text)
     floor["source"] = "floor"
+    # Russian free text never grants execution. Explicit refusals terminate before
+    # lexical/model matching; approval uses the numbered decision or its button.
+    if _CYRILLIC.search(text) or (language_of(language) == "ru" and not re.fullmatch(r"\s*\d{1,2}\s*", text)):
+        if floor["intent"] == "reject":
+            floor.update(intent="reject", option="")
+        else:
+            floor.update(intent="unclear", option="")
+        return floor
     payload = outbox_row.get("payload") or {}
     decisions = decisions_in(store, payload)
     named = names_the_action(text, decisions)
@@ -232,7 +249,8 @@ def merge(floor: dict[str, Any], verdict: dict[str, Any], text: str, decisions: 
     out["source"] = "model"
     if floor.get("rule"):
         out["rule"] = True  # a line drawn through a kind of thing is a rule whatever the model made of the answer
-    if out["intent"] == "approve" and ((floor.get("intent") == "reject" and has_negation(lowered)) or _negated_approval(lowered)):
+    if out["intent"] == "approve" and (has_negation(lowered) or _negated_approval(lowered)
+                                       or (_CYRILLIC.search(lowered) and floor.get("intent") != "approve")):
         out["intent"], out["option"] = "unclear", ""  # a real no in the words beats a model yes; a verb that names the action does not
     if floor.get("intent") == "approve" and floor.get("option") and out["intent"] in ("reject", "unclear") and not has_negation(lowered):
         out["intent"], out["option"] = "approve", str(floor["option"])  # the owner said the offered action in their own words
