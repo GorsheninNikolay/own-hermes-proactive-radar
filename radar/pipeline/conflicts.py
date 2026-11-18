@@ -25,13 +25,21 @@ MAX_TRIP_DAYS = 14
 _TRAVEL = re.compile(r"check-?in|check-?out|entrada|salida|\bida\b|vuelta|vuelo|flight|depart|arriv|return|llegada|regreso|estancia|\bstay\b|noche|night|tren|train|заезд|выезд|вылет|прил[её]т|рейс|возврат|возвращ|проживан|поезд|отъезд|прибыт", re.I)
 _DELIVERY = re.compile(r"entrega|deliver|reparto|recogida|pick-?up|\bcita\b|appointment|instalaci|install|достав|курьер|самовывоз|получени|установк", re.I)
 # A dated entity that is a deadline, not a day of the trip: the free-cancellation limit, a payment date.
-_DEADLINE = re.compile(r"cancel|anul|l[ií]mite|plazo|deadline|refund|reembols|pago|payment|vencimiento|due date|отмен|аннул|дедлайн|возмещ|возврат средств|оплат|плат[её]ж", re.I)
+_DEADLINE = re.compile(r"cancel|anul|l[ií]mite|plazo|deadline|refund|reembols|pago|payment|vencimiento|due date|отмен|аннул|дедлайн|возмещ|возврат[а-я]* средств|оплат|плат[её]ж", re.I)
+
+
+def _is_deadline(label: str, pattern: re.Pattern[str]) -> bool:
+    # A delivery due date is its arrival estimate, not a financial deadline.
+    # Keep all substantive exclusions, even when the label also says delivery.
+    if pattern is _DELIVERY:
+        label = re.sub(r"\bdue date\b", "", label, flags=re.I)
+    return bool(_DEADLINE.search(label))
 
 
 def _days(dates: Any, pattern: re.Pattern[str]) -> list[str]:
     out: list[str] = []
     for item in dates or []:
-        if not isinstance(item, dict) or not pattern.search(str(item.get("label") or "")) or _DEADLINE.search(str(item.get("label") or "")):
+        if not isinstance(item, dict) or not pattern.search(str(item.get("label") or "")) or _is_deadline(str(item.get("label") or ""), pattern):
             continue
         match = _DAY.match(str(item.get("when") or ""))
         if match:
@@ -56,7 +64,7 @@ def dated_days(item: dict[str, Any]) -> list[str]:
     days = _days((item.get("entities") or {}).get("dates"), _DELIVERY)
     for expectation in item.get("expectations") or []:
         description = str(expectation.get("description") or "") if isinstance(expectation, dict) else ""
-        if isinstance(expectation, dict) and _DELIVERY.search(description) and not _DEADLINE.search(description):
+        if isinstance(expectation, dict) and _DELIVERY.search(description) and not _is_deadline(description, _DELIVERY):
             match = _DAY.match(str(expectation.get("by") or ""))
             if match:
                 days.append(match.group(0))

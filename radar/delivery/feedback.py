@@ -53,8 +53,10 @@ _NEGATION = re.compile(
     r"|\bnot\b|\bnever\b|\bdon'?t\b|\bdo not\b|\bwait\b|\bhold on\b"
 )
 # Conservative Russian floor: refusal/negation also guards model and named-action paths.
-_RU_REJECT = re.compile(r"\b(?:нет|отмен\w*|отклон\w*)\b|\bне\s+(?:надо|отправ\w*|пиши|писать|делай|нужно)\b")
-_REJECT = re.compile(_REJECT.pattern + "|" + _RU_REJECT.pattern)
+_RU_REJECT = re.compile(
+    r"(?:нет|отмена|отмени(?:ть)?|отклони(?:ть)?|отклоняю|не\s+(?:надо|отправляй|отправлять|пиши|писать|делай|нужно))"
+    r"(?:\s+(?:это|письмо|предложение|отправку|в|gmail|send|it))*[.!]*", re.I
+)
 _NEGATION = re.compile(_NEGATION.pattern + r"|\b(?:нет|не|нельзя|никогда|отмен\w*|отклон\w*|подожди|погоди)\b")
 _CYRILLIC = re.compile(r"[а-яё]", re.I)
 _DONE = re.compile(r"ya est[áa]|ya lo (he )?hecho|hecho ya|already done|done already|i did it|ya lo compr|ya lo reserv|already (booked|bought|sent)")
@@ -106,6 +108,8 @@ def _classify(text: str) -> dict[str, Any]:
         lowered = lowered[number.end():].strip(" .,;:)-")  # the order is what follows the number
         if not lowered:
             return {"intent": "approve", "proposal_index": index}
+    if _CYRILLIC.search(lowered):
+        return {"intent": "reject" if _RU_REJECT.fullmatch(lowered) else "unclear", "proposal_index": index}
     if _DONE.search(lowered):
         return {"intent": "done", "proposal_index": index}
     if _PREF.search(lowered):
@@ -208,7 +212,7 @@ async def understand(gate: Any, text: str, *, outbox_row: dict[str, Any], store:
     # Russian free text never grants execution. Explicit refusals terminate before
     # lexical/model matching; approval uses the numbered decision or its button.
     if _CYRILLIC.search(text) or (language_of(language) == "ru" and not re.fullmatch(r"\s*\d{1,2}\s*", text)):
-        if _RU_REJECT.search(str(text).lower()) or floor["intent"] == "reject":
+        if floor["intent"] == "reject":
             floor.update(intent="reject", option="")
         else:
             floor.update(intent="unclear", option="")
