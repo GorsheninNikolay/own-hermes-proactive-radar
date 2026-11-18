@@ -25,6 +25,7 @@ if str(PLUGIN_ROOT) not in sys.path:
 from radar.config import _merge, _normalize  # noqa: E402
 from radar.delivery.context import thread_context  # noqa: E402
 from radar.i18n import language_of
+from radar.pipeline.checklists import label as checklist_label
 from radar.identity import PLUGIN_ID  # noqa: E402
 from radar.delivery.learn import describe_preference, forget_preference, preference_from_fields, store_preference  # noqa: E402
 from radar.delivery.notice import DRAFT_INLINE  # noqa: E402
@@ -123,7 +124,7 @@ def _task_view(store: Store, config: dict[str, Any], task: dict[str, Any], *, no
         "id": task["id"], "kind": task.get("kind"), "title": task.get("title"), "summary": task.get("summary"), "status": task.get("status"),
         "due_at": task.get("due_at"), "next_review_at": task.get("next_review_at"), "muted": bool(task.get("muted")), "updated_at": task.get("updated_at"),
         "created_at": task.get("created_at"), "confidence": task.get("confidence"),
-        "checklist": [c for c in task.get("checklist") or [] if isinstance(c, dict)],
+        "checklist": [{**c, "label": checklist_label(c.get("item", ""), "ru") if language_of(owner.get("language")) == "ru" else c.get("item", "")} for c in task.get("checklist") or [] if isinstance(c, dict)],
         "entities": {k: v for k, v in entities.items() if k in ("repo", "pr", "branch", "pattern_id", "schedule_cron") and v},
         "draft": (entities.get("draft") or {}).get("text", "")[:DRAFT_INLINE] if isinstance(entities.get("draft"), dict) else "",
         "context": thread_context(store, task["id"], config, now_dt=now_dt),

@@ -28,13 +28,22 @@ def test_russian_board_report_keeps_payload_and_draft(store, tmp_path, monkeypat
     cfg['owner']['language'] = locale
     now = '2026-10-19T10:00:00Z'
     draft = '<approved draft> Не переводить'
-    store.create_task(task_id='ru1', kind='trip', title='<Поездка>', summary='', entities={'draft': {'text': draft}}, expectations=[], checklist=[], now=now)
+    checklist = [{'item':'outbound transport booked','status':'missing','note':'<note>'}, {'item':'<custom>','status':'missing'}]
+    store.create_task(task_id='ru1', kind='trip', title='<Поездка>', summary='', entities={'draft': {'text': draft}}, expectations=[], checklist=checklist, now=now)
     client, _ = _client(monkeypatch, store, cfg, tmp_path)
     board = client.get('/api/plugins/hermes-proactive-radar/board').json()
     assert board['language'] == 'ru'
     assert board['tasks'][0]['id'] == 'ru1' and board['tasks'][0]['kind'] == 'trip'
     assert board['tasks'][0]['draft'] == draft
+    for task in [board['tasks'][0], client.get('/api/plugins/hermes-proactive-radar/tasks/ru1').json()]:
+        assert task['checklist'][0]['item'] == 'outbound transport booked'
+        assert task['checklist'][0]['label'] == 'транспорт туда забронирован'
+        assert task['checklist'][1]['label'] == '<custom>'
+    assert store.get_task('ru1')['checklist'] == checklist
     report = client.get('/api/plugins/hermes-proactive-radar/tasks/ru1/report').json()['html']
+    assert 'транспорт туда забронирован' in report and 'outbound transport booked' not in report
+    assert '&lt;custom&gt;' in report and '&lt;note&gt;' in report
+    assert '<custom>' not in report
     assert 'Поездка' in report and '&lt;Поездка&gt;' in report
     assert store.get_task('ru1')['entities']['draft']['text'] == draft
 

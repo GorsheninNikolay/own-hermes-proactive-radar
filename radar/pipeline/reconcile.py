@@ -137,7 +137,7 @@ def _best(fam: Family, rows: list[dict[str, Any]], taken: set[str]) -> dict[str,
         if not same_family(fam, other):
             continue
         score = _score(fam, other)
-        if score > best_score:
+        if best is None or score > best_score:
             best, best_score = row, score
     return best
 

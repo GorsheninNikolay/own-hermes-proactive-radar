@@ -111,10 +111,10 @@ _SYNONYMS = {"facturacion": "check-in", "facturar": "check-in", "embarque": "che
 
 def _words(text: str) -> set[str]:
     """Accent-free, parenthesis-free significant word stems, so a translated or reworded label still matches its item."""
-    plain = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode()
-    plain = re.sub(r"\([^)]*\)", " ", plain.lower())
+    plain = "".join(c for c in unicodedata.normalize("NFKD", str(text or "")).casefold() if not unicodedata.combining(c))
+    plain = re.sub(r"\([^)]*\)", " ", plain)
     out: set[str] = set()
-    for word in re.findall(r"[a-z0-9-]+", plain):
+    for word in re.findall(r"[^\W_]+(?:-[^\W_]+)*", plain):
         word = _SYNONYMS.get(word, word)
         if word in _STOPWORDS or len(word) < 3:
             continue

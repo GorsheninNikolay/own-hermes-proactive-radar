@@ -5,6 +5,7 @@ import html
 from typing import Any
 
 from ..i18n import t, language_of
+from ..pipeline.checklists import label as checklist_label
 
 _RU_LABELS = {"trip": "Поездка", "purchase": "Покупка", "work_item": "Рабочая задача", "commitment": "Обязательство", "check": "Проверка", "routine": "Рутина", "other": "Прочее", "open": "Открыто", "needs_user": "Требует решения", "in_progress": "В работе", "waiting": "Ожидание", "snoozed": "Отложено", "done": "Готово", "pending": "Ожидает решения", "sent": "Отправлено", "accepted": "Принято", "executing": "Выполняется", "running": "Выполняется", "failed": "Ошибка", "completed": "Завершено", "declined": "Отклонено", "expired": "Истекло", "cancelled": "Отменено", "research": "Исследование"}
 
@@ -47,7 +48,7 @@ def render_task_report(
     if checklist:
         parts.append(f"<div class='card'><h2>{_e(t(language, 'checklist'))}</h2><ul>")
         for item in checklist:
-            parts.append(f"<li class='{_e(item.get('status'))}'>{_e(item.get('item'))}"
+            parts.append(f"<li class='{_e(item.get('status'))}'>{_e(checklist_label(item.get('item', ''), 'ru') if language_of(language) == 'ru' else item.get('item', ''))}"
                          + (f" <small>— {_e(item.get('note'))}</small>" if item.get("note") else "") + "</li>")
         parts.append("</ul></div>")
     if proposals:

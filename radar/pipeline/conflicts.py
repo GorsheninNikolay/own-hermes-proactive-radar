@@ -25,7 +25,7 @@ MAX_TRIP_DAYS = 14
 _TRAVEL = re.compile(r"check-?in|check-?out|entrada|salida|\bida\b|vuelta|vuelo|flight|depart|arriv|return|llegada|regreso|estancia|\bstay\b|noche|night|tren|train|заезд|выезд|вылет|прил[её]т|рейс|возврат|возвращ|проживан|поезд|отъезд|прибыт", re.I)
 _DELIVERY = re.compile(r"entrega|deliver|reparto|recogida|pick-?up|\bcita\b|appointment|instalaci|install|достав|курьер|самовывоз|получени|установк", re.I)
 # A dated entity that is a deadline, not a day of the trip: the free-cancellation limit, a payment date.
-_DEADLINE = re.compile(r"cancel|anul|l[ií]mite|plazo|deadline|refund|reembols|pago|payment|vencimiento|due date|отмен|аннул|срок|дедлайн|возмещ|возврат средств|оплат|плат[её]ж", re.I)
+_DEADLINE = re.compile(r"cancel|anul|l[ií]mite|plazo|deadline|refund|reembols|pago|payment|vencimiento|due date|отмен|аннул|дедлайн|возмещ|возврат средств|оплат|плат[её]ж", re.I)
 
 
 def _days(dates: Any, pattern: re.Pattern[str]) -> list[str]:
@@ -55,7 +55,8 @@ def dated_days(item: dict[str, Any]) -> list[str]:
     if the expectation speaks of a delivery."""
     days = _days((item.get("entities") or {}).get("dates"), _DELIVERY)
     for expectation in item.get("expectations") or []:
-        if isinstance(expectation, dict) and _DELIVERY.search(str(expectation.get("description") or "")):
+        description = str(expectation.get("description") or "") if isinstance(expectation, dict) else ""
+        if isinstance(expectation, dict) and _DELIVERY.search(description) and not _DEADLINE.search(description):
             match = _DAY.match(str(expectation.get("by") or ""))
             if match:
                 days.append(match.group(0))

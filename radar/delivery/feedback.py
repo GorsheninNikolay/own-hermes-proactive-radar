@@ -13,7 +13,7 @@ import logging
 import re
 from typing import Any
 
-from ..i18n import language_name
+from ..i18n import language_name, language_of
 from ..pipeline.schemas import INTENT_SCHEMA
 from ..prompts import INTENT_SYSTEM
 
@@ -53,8 +53,9 @@ _NEGATION = re.compile(
     r"|\bnot\b|\bnever\b|\bdon'?t\b|\bdo not\b|\bwait\b|\bhold on\b"
 )
 # Conservative Russian floor: refusal/negation also guards model and named-action paths.
-_REJECT = re.compile(_REJECT.pattern + r"|\b(?:нет|отмена|отмени|отклоняю|отклонить)\b|\bне\s+(?:надо|отправ\w*|пиши|писать|делай|нужно)\b")
-_NEGATION = re.compile(_NEGATION.pattern + r"|\b(?:нет|не|нельзя|никогда|отмена|отмени|подожди|погоди)\b")
+_RU_REJECT = re.compile(r"\b(?:нет|отмен\w*|отклон\w*)\b|\bне\s+(?:надо|отправ\w*|пиши|писать|делай|нужно)\b")
+_REJECT = re.compile(_REJECT.pattern + "|" + _RU_REJECT.pattern)
+_NEGATION = re.compile(_NEGATION.pattern + r"|\b(?:нет|не|нельзя|никогда|отмен\w*|отклон\w*|подожди|погоди)\b")
 _CYRILLIC = re.compile(r"[а-яё]", re.I)
 _DONE = re.compile(r"ya est[áa]|ya lo (he )?hecho|hecho ya|already done|done already|i did it|ya lo compr|ya lo reserv|already (booked|bought|sent)")
 
@@ -204,6 +205,14 @@ async def understand(gate: Any, text: str, *, outbox_row: dict[str, Any], store:
     passing the order on; and the floor only speaks Spanish and English."""
     floor = classify(text)
     floor["source"] = "floor"
+    # Russian free text never grants execution. Explicit refusals terminate before
+    # lexical/model matching; approval uses the numbered decision or its button.
+    if _CYRILLIC.search(text) or (language_of(language) == "ru" and not re.fullmatch(r"\s*\d{1,2}\s*", text)):
+        if _RU_REJECT.search(str(text).lower()) or floor["intent"] == "reject":
+            floor.update(intent="reject", option="")
+        else:
+            floor.update(intent="unclear", option="")
+        return floor
     payload = outbox_row.get("payload") or {}
     decisions = decisions_in(store, payload)
     named = names_the_action(text, decisions)

@@ -586,7 +586,7 @@ function Focus({ task, kind, t, language, onClose, onFeedback, onDismiss }) {
         jsxs('div', { className: 'rd-focus-body', children: [
           task.summary ? jsx('p', { style: { margin: 0, color: 'var(--rd-sub)', fontSize: '.9rem', lineHeight: 1.5 }, children: task.summary }) : null,
           jsx(Context, { context: task.context, t }),
-          missing.length ? jsxs('div', { style: { fontSize: '.8rem' }, children: [jsx('b', { children: `${t.checklist}: ` }), missing.map((c) => c.item).join('; ')] }) : null,
+          missing.length ? jsxs('div', { style: { fontSize: '.8rem' }, children: [jsx('b', { children: `${t.checklist}: ` }), missing.map((c) => c.label || c.item).join('; ')] }) : null,
           task.entities && task.entities.pr ? jsx('a', { style: { fontSize: '.8rem', textDecoration: 'underline' }, href: task.entities.pr, target: '_blank', rel: 'noreferrer', children: task.entities.pr }) : null,
           jsxs('div', { children: [jsx('div', { className: 'rd-focus-eyebrow', style: { marginBottom: '7px' }, children: t.proposals }), proposals.length ? proposals.map((p) => jsx(Proposal, { proposal: p, t, onFeedback }, p.id)) : jsx('div', { style: { fontSize: '.8rem', color: 'var(--rd-dim)' }, children: t.nothingPending })] }),
           task.draft && !proposals.some((p) => p.draft) ? jsxs('div', { style: { background: 'var(--rd-panel)', borderRadius: '8px', padding: '8px', fontSize: '.8rem', whiteSpace: 'pre-wrap' }, children: [jsx('b', { children: `${t.draft}: ` }), task.draft] }) : null,
